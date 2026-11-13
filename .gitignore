@@ -5,6 +5,3 @@ node_modules/
 .env.*
 !.env.example
 *.log
-ocr-service/.venv/
-ocr-service/__pycache__/
-*.pyc
