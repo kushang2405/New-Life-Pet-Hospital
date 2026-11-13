@@ -5,9 +5,14 @@
 function errorHandler(err, req, res, next) {
   console.error('[error]', err.message);
   if (res.headersSent) return next(err);
-  const status = err.status || 500;
+
+  const status =
+    err.status ||
+    err.statusCode ||
+    (err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500);
+
   res.status(status).json({
-    error: err.code || 'INTERNAL_ERROR',
+    error: err.code || err.name || 'INTERNAL_ERROR',
     message: err.message || 'Something went wrong',
   });
 }

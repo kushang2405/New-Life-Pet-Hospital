@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const AnalyteSchema = new mongoose.Schema({
   section: { type: String, default: '' },
-  name: { type: String, required: true },
+  name: { type: String, default: 'Analyte' },
   result: { type: String, default: '' },
   unit: { type: String, default: '' },
   referenceRange: { type: String, default: '' },

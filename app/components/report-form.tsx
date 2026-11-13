@@ -121,18 +121,36 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       setError('Select both an owner and a pet before generating the report.');
       return;
     }
-    const analytes = rows.filter((row) => row.name.trim() || row.result.trim());
+
+    const ownerId = String(selectedOwner.id || (selectedOwner as any)._id || '').trim();
+    const petId = String(selectedPet.id || (selectedPet as any)._id || '').trim();
+    if (!ownerId || !petId) {
+      setError('Selected owner or pet is missing a valid ID. Please re-select the patient.');
+      return;
+    }
+
+    const cleanedAnalytes = rows
+      .filter((row) => (row.name || '').trim() || (row.result || '').trim())
+      .map((row) => ({
+        ...row,
+        name: (row.name || '').trim() || 'Analyte',
+        result: (row.result || '').trim(),
+        unit: (row.unit || '').trim(),
+        referenceRange: (row.referenceRange || '').trim(),
+        remarks: (row.remarks || '').trim(),
+      }));
+
     setSaveBusy(true);
     setError('');
     try {
-      const title = `${selectedPet.name}-${reportType}`;
+      const title = `${selectedPet.name || 'Patient'}-${reportType}`;
       const draft: ReportDraft = {
         reportType,
         title,
         owner: selectedOwner,
         pet: selectedPet,
         patientDetails: details,
-        analytes: applyReferenceRanges(analytes, reportType),
+        analytes: applyReferenceRanges(cleanedAnalytes, reportType),
         logoDataUrl: logoDataUrl || undefined,
       };
       const pdf = createReportPdf(draft);
@@ -147,12 +165,12 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
         body: JSON.stringify({
           reportType,
           title,
-          ownerId: selectedOwner.id,
-          petId: selectedPet.id,
-          ownerSnapshot: { id: selectedOwner.id, name: selectedOwner.name, phone: selectedOwner.phone, email: selectedOwner.email, address: selectedOwner.address },
-          petSnapshot: { id: selectedPet.id, ownerId: selectedPet.ownerId, name: selectedPet.name, species: selectedPet.species, breed: selectedPet.breed, gender: selectedPet.gender, birthDate: selectedPet.birthDate, weightKg: selectedPet.weightKg },
+          ownerId,
+          petId,
+          ownerSnapshot: { id: ownerId, name: selectedOwner.name, phone: selectedOwner.phone, email: selectedOwner.email, address: selectedOwner.address },
+          petSnapshot: { id: petId, ownerId, name: selectedPet.name, species: selectedPet.species, breed: selectedPet.breed, gender: selectedPet.gender, birthDate: selectedPet.birthDate, weightKg: selectedPet.weightKg },
           patientDetails: details,
-          analytes: applyReferenceRanges(analytes, reportType),
+          analytes: applyReferenceRanges(cleanedAnalytes, reportType),
           ocrText,
           sourceImageName: imageName,
           pdfData,

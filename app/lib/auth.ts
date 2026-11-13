@@ -53,8 +53,16 @@ export async function authFetch(path: string, options?: RequestInit): Promise<an
     },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Request failed (${res.status})`);
+    const text = await res.text().catch(() => '');
+    let body: any = {};
+    try {
+      body = JSON.parse(text);
+    } catch {}
+    const msg =
+      body.message ||
+      body.error ||
+      (text && text.length < 250 && !text.includes('<!DOCTYPE') ? text : `Request failed (${res.status})`);
+    throw new Error(msg);
   }
   return res.json();
 }
