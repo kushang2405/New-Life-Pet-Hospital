@@ -116,10 +116,6 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       return;
     }
     const analytes = rows.filter((row) => row.name.trim() || row.result.trim());
-    if (!analytes.length) {
-      setError('Add at least one result row before generating the report.');
-      return;
-    }
     setSaveBusy(true);
     setError('');
     try {

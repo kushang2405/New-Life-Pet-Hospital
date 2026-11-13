@@ -68,6 +68,12 @@ class ExtractRequest(BaseModel):
     images: list[ReportImage] = Field(min_length=1, max_length=10)
 
 
+@app.get('/')
+def root_health():
+    """Render's default health probe requests the service root."""
+    return {'status': 'ok'}
+
+
 @app.get('/health')
 def health():
     return {'status': 'ok'}
