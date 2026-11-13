@@ -5,7 +5,7 @@ const { authRequired } = require('../middleware/authMiddleware');
 const router = express.Router();
 const REPORT_TYPES = ['BIO', 'CBC'];
 const MAX_IMAGES = 10;
-const TIMEOUT_MS = 60000;
+const SINGLE_IMAGE_TIMEOUT_MS = 12000;
 
 let cachedModel = null;
 
@@ -19,7 +19,7 @@ async function resolveModel(apiKey) {
 
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
     });
     if (listRes.ok) {
       const data = await listRes.json();
@@ -31,8 +31,9 @@ async function resolveModel(apiKey) {
       const names = usable.map((m) => m.name.replace(/^models\//, ''));
       console.log('[ocr] Available models for this key:', names.join(', '));
 
-      // Prefer non-experimental flash models first, then any flash, then any gemini model
+      // Fast models priority: flash-8b, flash, then any gemini
       const preferred =
+        usable.find((m) => m.name.includes('flash-8b')) ||
         usable.find((m) => m.name.includes('flash') && !m.name.includes('exp')) ||
         usable.find((m) => m.name.includes('flash')) ||
         usable.find((m) => m.name.includes('gemini')) ||
@@ -43,22 +44,99 @@ async function resolveModel(apiKey) {
         console.log('[ocr] Automatically selected Gemini model:', cachedModel);
         return cachedModel;
       }
-    } else {
-      console.warn('[ocr] ListModels returned status:', listRes.status);
     }
   } catch (err) {
-    console.warn('[ocr] ListModels failed, using fallback:', err.message);
+    console.warn('[ocr] ListModels notice:', err.message);
   }
 
   cachedModel = 'gemini-1.5-flash';
   return cachedModel;
 }
 
+// Single image extractor - fast, lightweight, no wasted tokens
+async function extractSingleImage(modelName, apiKey, reportType, image) {
+  const dataUrl = image.dataUrl || '';
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = match ? match[1] : 'image/jpeg';
+  const data = match ? match[2] : dataUrl.split(',').pop();
+
+  const prompt = `You are an expert veterinary laboratory diagnostics technician and automated data extraction engine.
+Analyze this ${reportType === 'CBC' ? 'Complete Blood Count (CBC)' : 'Biochemistry (BIO)'} test report photo.
+Extract all test analyte rows found in the table.
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "rows": [
+    {
+      "section": "${reportType === 'CBC' ? 'CBC' : 'Liver Profile | Kidney Profile | Pancreatic Profile | Lipid Profile | Other'}",
+      "name": "analyte name (e.g. WBC, RBC, Urea, Creatinine, ALT)",
+      "result": "result number or value",
+      "unit": "measurement unit or empty string",
+      "referenceRange": "reference/normal range or empty string",
+      "remarks": "flag (H, L, or empty string)",
+      "needsReview": false
+    }
+  ]
+}`;
+
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType, data } },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+    },
+  };
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(SINGLE_IMAGE_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null);
+    throw new Error(errBody?.error?.message || `Gemini API error (${res.status})`);
+  }
+
+  const json = await res.json();
+  const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) return [];
+
+  try {
+    const parsed = JSON.parse(rawText);
+    return Array.isArray(parsed.rows) ? parsed.rows : [];
+  } catch {
+    return [];
+  }
+}
+
+// Automatic retry wrapper to guard against transient network/API hiccups
+async function extractWithRetry(modelName, apiKey, reportType, image, retries = 1) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await extractSingleImage(modelName, apiKey, reportType, image);
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.warn(`[ocr] Image request attempt ${attempt + 1} failed (${err.message}). Retrying in 1.2s...`);
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+  }
+}
+
 router.post('/extract', authRequired, asyncHandler(async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
-      message: 'Gemini API key is not configured. Please add GEMINI_API_KEY to your .env file or deployment settings.',
+      message: 'Gemini API key is not configured. Please add GEMINI_API_KEY to your settings.',
     });
   }
 
@@ -72,134 +150,62 @@ router.post('/extract', authRequired, asyncHandler(async (req, res) => {
 
   const modelName = await resolveModel(apiKey);
 
-  // Format base64 images into Gemini inlineData parts
-  const imageParts = [];
-  for (const img of images) {
-    const dataUrl = img.dataUrl || '';
-    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      imageParts.push({
-        inlineData: {
-          mimeType: match[1],
-          data: match[2],
-        },
-      });
+  // Process all images in parallel with retry and graceful error boundaries
+  const settled = await Promise.allSettled(
+    images.map((img) => extractWithRetry(modelName, apiKey, reportType, img))
+  );
+
+  const seen = new Set();
+  const allRows = [];
+  const warnings = [];
+  let failedPages = 0;
+
+  settled.forEach((result, idx) => {
+    if (result.status === 'fulfilled') {
+      const pageRows = result.value || [];
+      for (const r of pageRows) {
+        const name = String(r.name || '').trim();
+        if (!name) continue;
+        const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        allRows.push({
+          section: String(r.section || (reportType === 'CBC' ? 'CBC' : 'Other')).trim(),
+          name,
+          result: String(r.result || '').trim(),
+          unit: String(r.unit || '').trim(),
+          referenceRange: String(r.referenceRange || '').trim(),
+          remarks: String(r.remarks || '').trim(),
+          needsReview: Boolean(r.needsReview),
+        });
+      }
     } else {
-      const parts = dataUrl.split(',');
-      imageParts.push({
-        inlineData: {
-          mimeType: 'image/jpeg',
-          data: parts.length > 1 ? parts[1] : parts[0],
-        },
-      });
+      failedPages++;
+      console.error(`[ocr] Photo ${idx + 1} extraction failed:`, result.reason?.message);
     }
-  }
+  });
 
-  const promptText = `You are an expert veterinary laboratory diagnostics technician and automated data extraction engine.
-Analyze the provided veterinary lab test report image(s).
-The report type is: ${reportType} (${reportType === 'CBC' ? 'Complete Blood Count' : 'Biochemistry / Chemistry Profile'}).
-
-Extract all analyte test results and parameters found in the report into structured JSON.
-For each row/analyte:
-- "name": The parameter / test name (e.g., "WBC", "RBC", "HGB", "Total protein", "Albumin", "Creatinine", "ALT", etc.).
-- "section": For CBC use "CBC". For BIO assign to clinical profile: "Liver Profile", "Kidney Profile", "Pancreatic Profile", "Lipid Profile", or "Other".
-- "result": The numerical or text result (e.g., "8.70", "1.20", "+++++").
-- "unit": The measurement unit (e.g., "10^9/L", "g/dL", "mg/dL", "fL", or "" if none).
-- "referenceRange": The reference/normal range (e.g., "6.0-17.0", "1.20-2.40", or "" if none listed).
-- "remarks": High/Low or abnormal flag ("H", "L", or "").
-- "needsReview": boolean (true if the text was blurry or ambiguous, false otherwise).
-
-Also provide:
-- "warnings": array of strings if any image is unclear or values could not be read; empty array if all clear.
-- "rawText": clean text transcription of all visible test results in the image.
-
-Return ONLY a valid JSON object matching this schema:
-{
-  "rows": [
-    {
-      "section": "string",
-      "name": "string",
-      "result": "string",
-      "unit": "string",
-      "referenceRange": "string",
-      "remarks": "string",
-      "needsReview": false
-    }
-  ],
-  "warnings": [],
-  "rawText": "string"
-}`;
-
-  const payload = {
-    contents: [
-      {
-        parts: [
-          { text: promptText },
-          ...imageParts,
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.1,
-      responseMimeType: 'application/json',
-    },
-  };
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-  let geminiRes;
-  try {
-    geminiRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+  if (allRows.length === 0 && failedPages > 0) {
+    return res.status(502).json({
+      message: 'The report reader timed out while reaching Google AI. Please try again with clear photos.',
     });
-  } catch (err) {
-    console.error('[ocr] Gemini API request failed:', err.message);
-    return res.status(502).json({ message: 'Unable to reach Gemini OCR service. Please check your network and try again.' });
   }
 
-  const data = await geminiRes.json().catch(() => null);
-
-  if (!geminiRes.ok) {
-    console.error('[ocr] Gemini API error:', geminiRes.status, data);
-    const msg = data?.error?.message || `Gemini API returned error (${geminiRes.status})`;
-    return res.status(502).json({ message: msg });
+  if (failedPages > 0) {
+    warnings.push(`${failedPages} of ${images.length} photo(s) took too long, but other pages were read successfully.`);
+  } else if (allRows.length === 0) {
+    warnings.push('No test rows were found. Please ensure the photos clearly show the table.');
   }
 
-  const rawJsonText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawJsonText) {
-    return res.status(502).json({ message: 'No data returned from the Gemini vision model.' });
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(rawJsonText);
-  } catch (err) {
-    console.error('[ocr] Failed to parse Gemini response as JSON:', rawJsonText);
-    return res.status(502).json({ message: 'Invalid response format received from Gemini vision model.' });
-  }
-
-  const rows = Array.isArray(parsed.rows) ? parsed.rows.map((r) => ({
-    section: String(r.section || (reportType === 'CBC' ? 'CBC' : 'Other')),
-    name: String(r.name || '').trim(),
-    result: String(r.result || '').trim(),
-    unit: String(r.unit || '').trim(),
-    referenceRange: String(r.referenceRange || '').trim(),
-    remarks: String(r.remarks || '').trim(),
-    needsReview: Boolean(r.needsReview),
-  })).filter((r) => r.name) : [];
-
-  const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
-  if (rows.length === 0) {
-    warnings.push('No test rows were found. Please ensure the image clearly shows the report table.');
-  }
+  const rawText = allRows
+    .map((r) => `${r.name}: ${r.result} ${r.unit} ${r.referenceRange ? `(${r.referenceRange})` : ''} ${r.remarks}`.trim())
+    .join('\n');
 
   res.json({
-    rows,
+    rows: allRows,
     warnings,
-    rawText: typeof parsed.rawText === 'string' ? parsed.rawText : '',
+    rawText,
   });
 }));
 

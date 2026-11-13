@@ -87,14 +87,20 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
     setOcrBusy(true);
     try {
       const images = await Promise.all(photos.map(async (file) => ({ name: file.name, dataUrl: await compressReportImage(file) })));
-      const result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
+      let result: OcrExtractResult;
+      try {
+        result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
+      } catch (firstErr) {
+        // Automatic retry once for transient network or cloud hiccups
+        result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
+      }
       setImageName(photos.map((file) => file.name).join(' · '));
       setOcrText(result.rawText);
       setRows(result.rows.length ? applyReferenceRanges(result.rows, reportType) : [emptyRow(reportType)]);
       const summary = `${result.rows.length} result rows read from ${photos.length} image${photos.length === 1 ? '' : 's'}.`;
       setNotice([summary, ...result.warnings].join(' '));
     } catch (err) {
-      setError((err as Error).message || 'Could not read the uploaded images.');
+      setError((err as Error).message || 'Could not read the uploaded images. Please try again.');
     } finally {
       setOcrBusy(false);
     }
