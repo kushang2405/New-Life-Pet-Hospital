@@ -30,10 +30,7 @@ app = FastAPI(title='Report OCR', lifespan=lifespan)
 # not constrained by the Netlify function request timeout.
 allowed_origins = [
     origin.strip()
-    for origin in os.getenv(
-        'CORS_ORIGINS',
-        'https://newlifepethospital.netlify.app,http://localhost:3000',
-    ).split(',')
+    for origin in os.getenv('CORS_ORIGINS', '').split(',')
     if origin.strip()
 ]
 app.add_middleware(
