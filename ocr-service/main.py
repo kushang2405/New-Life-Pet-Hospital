@@ -1,4 +1,5 @@
 import base64
+import logging
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -8,6 +9,8 @@ from pydantic import BaseModel, Field
 from ocr_engine import read_detections, warm_up_ocr
 from preprocess import decode_image, prepare_image
 from table_parser import group_rows, merge_pages, parse_page
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -44,10 +47,17 @@ def extract(request: ExtractRequest):
             source = decode_image(base64.b64decode(image.dataUrl.split(',')[-1]))
         except ValueError as err:
             raise HTTPException(status_code=400, detail=f'{image.name or "Image"}: {err}')
-        prepared = prepare_image(source)
-        detections = read_detections(prepared)
-        pages.append(parse_page(detections, prepared.shape[1], request.reportType))
-        raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
+        try:
+            prepared = prepare_image(source)
+            detections = read_detections(prepared)
+            pages.append(parse_page(detections, prepared.shape[1], request.reportType))
+            raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
+        except Exception as err:
+            logger.exception('OCR processing failed for %s', image.name or 'uploaded image')
+            raise HTTPException(
+                status_code=500,
+                detail=f'{image.name or "Image"}: OCR processing failed ({type(err).__name__}: {err})',
+            ) from err
 
     rows = merge_pages(pages)
     warnings = []
