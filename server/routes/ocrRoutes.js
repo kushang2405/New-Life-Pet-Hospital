@@ -29,13 +29,17 @@ router.post('/extract', authRequired, asyncHandler(async (req, res) => {
       body: JSON.stringify({ reportType, images }),
       signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
     });
-  } catch {
+  } catch (err) {
+    console.error('[ocr] Unable to reach OCR service:', err.message);
     return res.status(502).json({ message: 'The report reader is not reachable right now. Please try again shortly.' });
   }
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail = typeof data?.detail === 'string' ? data.detail : 'The report reader could not read these photos.';
+    console.error('[ocr] OCR service error:', response.status, data);
+    const detail = typeof data?.detail === 'string'
+      ? data.detail
+      : `The report reader returned an error (${response.status}). Check the OCR service logs.`;
     return res.status(response.status === 400 ? 400 : 502).json({ message: detail });
   }
   res.json(data);
