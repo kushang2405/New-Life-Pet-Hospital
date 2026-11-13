@@ -1,7 +1,9 @@
+import os
 import base64
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from ocr_engine import read_detections
@@ -9,6 +11,25 @@ from preprocess import decode_image, prepare_image
 from table_parser import group_rows, merge_pages, parse_page
 
 app = FastAPI(title='Report OCR')
+
+
+# CORS configuration
+cors_origins = [
+    origin.strip().rstrip('/')
+    for origin in os.getenv(
+        'CORS_ORIGINS',
+        'http://localhost:3000'
+    ).split(',')
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=False,
+    allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allow_headers=['Authorization', 'Content-Type'],
+)
 
 
 class ReportImage(BaseModel):
