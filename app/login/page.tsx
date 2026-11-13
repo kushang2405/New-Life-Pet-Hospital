@@ -198,7 +198,7 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <div className="mt-8">
+              {/* <div className="mt-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex-1 h-px bg-line" />
                   <span className="text-[11px] text-ink/40 font-medium uppercase tracking-wide">Quick role access</span>
@@ -236,7 +236,7 @@ export default function LoginPage() {
                     );
                   })}
                 </div>
-              </div>
+              </div> */}
             </>
           )}
 
