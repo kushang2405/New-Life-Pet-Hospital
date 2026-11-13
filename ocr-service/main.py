@@ -18,7 +18,6 @@ cors_origins = [
     origin.strip().rstrip('/')
     for origin in os.getenv(
         'CORS_ORIGINS',
-        'http://localhost:3000'
     ).split(',')
     if origin.strip()
 ]
