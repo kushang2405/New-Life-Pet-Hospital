@@ -2,7 +2,7 @@
   "name": "New Life Pet Hospital",
   "short_name": "New Life Pet Hospital",
   "description": "Patient records, appointments, billing and staff attendance in one place.",
-  "start_url": "/",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

@@ -1,12 +1,13 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
+const { authRequired } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 const REPORT_TYPES = ['BIO', 'CBC'];
 const MAX_IMAGES = 10;
 const OCR_TIMEOUT_MS = 180000;
 
-router.post('/extract', asyncHandler(async (req, res) => {
+router.post('/extract', authRequired, asyncHandler(async (req, res) => {
   const serviceUrl = process.env.OCR_SERVICE_URL;
   if (!serviceUrl) {
     return res.status(503).json({ message: 'The report reader is not connected yet. Set OCR_SERVICE_URL to the reader address.' });

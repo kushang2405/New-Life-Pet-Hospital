@@ -25,7 +25,7 @@ const API_BASE =
     ? (window as unknown as { __API_BASE__?: string }).__API_BASE__ || process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
     : process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
-function getToken(): string | null {
+export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
 }
@@ -42,7 +42,7 @@ function getStoredUser(): User | null {
 }
 
 export async function authFetch(path: string, options?: RequestInit): Promise<any> {
-  const token = getToken();
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -83,7 +83,7 @@ export function getUser(): User | null {
 }
 
 export async function refreshUser(): Promise<User | null> {
-  const token = getToken();
+  const token = getAuthToken();
   if (!token) return null;
   try {
     const user = await authFetch('/auth/me');

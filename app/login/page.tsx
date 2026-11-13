@@ -4,18 +4,20 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PawPrint, Lock, Mail, Eye, EyeOff, ArrowRight, Shield, User as UserIcon, KeyRound, ArrowLeft } from 'lucide-react';
 import { login, getUser, requestPasswordReset, confirmPasswordReset } from '../lib/auth';
-import { Field, Input } from '../components/ui';
+import { Checkbox, Field, Input } from '../components/ui';
 import { demoAccounts, roleInfo } from '../lib/platform';
 import { useSettings } from '../lib/settings';
 import type { Role } from '../lib/platform';
 
 type Mode = 'login' | 'reset-request' | 'reset-confirm';
+const REMEMBERED_EMAIL_KEY = 'petcare-pro-remembered-email';
 
 export default function LoginPage() {
   const router = useRouter();
   const { settings } = useSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,12 @@ export default function LoginPage() {
   const [resetMsg, setResetMsg] = useState('');
 
   useEffect(() => {
+    const rememberedEmail = window.localStorage.getItem(REMEMBERED_EMAIL_KEY);
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+      setRememberMe(true);
+    }
+
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const em = params.get('email');
@@ -54,6 +62,11 @@ export default function LoginPage() {
     setError('');
     try {
       const u = await login(email, password);
+      if (rememberMe) {
+        window.localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim());
+      } else {
+        window.localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      }
       router.push(u.role === 'Staff' ? '/attendance' : '/');
     } catch (err) {
       setError((err as Error).message || 'Invalid email or password. Try a role card below for quick access.');
@@ -126,6 +139,8 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.invalid"
+                    name="email"
+                    autoComplete="username"
                   />
                 </Field>
                 <Field label="Password">
@@ -137,6 +152,8 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder=".........."
                       className="[&_input]:pr-10"
+                      name="password"
+                      autoComplete="current-password"
                     />
                     <button
                       type="button"
@@ -154,6 +171,13 @@ export default function LoginPage() {
                     {error}
                   </div>
                 )}
+
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  label="Remember me on this device"
+                  hint="Your email is saved here; your browser can securely save and autofill the password."
+                />
 
                 <div className="flex justify-end">
                   <button

@@ -66,6 +66,10 @@ router.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
+// Meta calls the webhook routes above without a clinic session. All other
+// routes in this router expose clinic or patient information.
+router.use(authRequired);
+
 router.get(
   '/logs',
   asyncHandler(async (req, res) => {

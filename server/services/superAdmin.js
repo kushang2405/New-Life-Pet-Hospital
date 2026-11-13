@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const Staff = require('../models/Staff');
 
-const SUPER_ADMIN_EMAIL = 'admin@petcare.pro';
+const SUPER_ADMIN_EMAIL = 'admin@gmail.com';
 const SUPER_ADMIN_PASSWORD = 'admin123';
 
 async function ensureSuperAdmin() {

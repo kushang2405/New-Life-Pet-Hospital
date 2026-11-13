@@ -4,6 +4,8 @@
  * Mutations go through individual REST endpoints per collection.
  */
 
+import { getAuthToken } from './auth';
+
 export const API_BASE =
   typeof window !== 'undefined'
     ? (window as unknown as { __API_BASE__?: string }).__API_BASE__ || process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
@@ -1199,9 +1201,15 @@ export const newId = (p: string) => `${p}_${Math.random().toString(36).slice(2, 
 export const today = todayISO;
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
