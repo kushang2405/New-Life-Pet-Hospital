@@ -1,9 +1,13 @@
 import base64
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+import jwt
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from ocr_engine import read_detections, warm_up_ocr
@@ -22,6 +26,40 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title='Report OCR', lifespan=lifespan)
 
+# OCR is called directly by the signed-in web app so that image processing is
+# not constrained by the Netlify function request timeout.
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        'CORS_ORIGINS',
+        'https://newlifepethospital.netlify.app,http://localhost:3000',
+    ).split(',')
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=['POST'],
+    allow_headers=['Authorization', 'Content-Type'],
+)
+
+auth_scheme = HTTPBearer(auto_error=False)
+
+
+def require_auth(credentials: HTTPAuthorizationCredentials | None = Depends(auth_scheme)):
+    secret = os.getenv('JWT_SECRET')
+    if not secret:
+        raise HTTPException(status_code=503, detail='OCR authentication is not configured.')
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Authentication required.')
+    try:
+        return jwt.decode(credentials.credentials, secret, algorithms=['HS256'])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Session expired. Please sign in again.')
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid session token.')
+
 
 class ReportImage(BaseModel):
     name: str = ''
@@ -38,7 +76,7 @@ def health():
     return {'status': 'ok'}
 
 
-@app.post('/extract')
+@app.post('/extract', dependencies=[Depends(require_auth)])
 def extract(request: ExtractRequest):
     pages = []
     raw_sections = []

@@ -25,6 +25,8 @@ const API_BASE =
     ? (window as unknown as { __API_BASE__?: string }).__API_BASE__ || process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
     : process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
+const OCR_SERVICE_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL?.replace(/\/$/, '');
+
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
@@ -55,6 +57,26 @@ export async function authFetch(path: string, options?: RequestInit): Promise<an
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.message || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function ocrFetch(path: string, options?: RequestInit): Promise<any> {
+  const token = getAuthToken();
+  if (!OCR_SERVICE_URL) throw new Error('The report reader is not configured yet.');
+  if (!token) throw new Error('Please sign in before reading a report.');
+
+  const res = await fetch(`${OCR_SERVICE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options?.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || body.message || `Report reader request failed (${res.status})`);
   }
   return res.json();
 }

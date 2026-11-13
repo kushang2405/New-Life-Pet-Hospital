@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileImage, Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Button, DateInput, EmptyState, Field, Input, Select, Textarea } from './ui';
-import { authFetch } from '../lib/auth';
+import { authFetch, ocrFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
 import { compressReportImage } from '../lib/report-images';
 import { applyCbcReferenceRanges, formatPetAge } from '../lib/report-parser';
@@ -87,7 +87,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
     setOcrBusy(true);
     try {
       const images = await Promise.all(photos.map(async (file) => ({ name: file.name, dataUrl: await compressReportImage(file) })));
-      const result = await authFetch('/ocr/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
+      const result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
       setImageName(photos.map((file) => file.name).join(' · '));
       setOcrText(result.rawText);
       setRows(result.rows.length ? applyReferenceRanges(result.rows, reportType) : [emptyRow(reportType)]);
