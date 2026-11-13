@@ -15,6 +15,11 @@ def _engine():
     )
 
 
+def warm_up_ocr() -> None:
+    """Load the PaddleOCR model while the service starts, not on a request."""
+    _engine()
+
+
 def read_detections(image: np.ndarray) -> list[dict]:
     page = _engine().predict(image)[0]
     detections = []

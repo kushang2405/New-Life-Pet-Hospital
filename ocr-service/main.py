@@ -1,14 +1,23 @@
 import base64
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from ocr_engine import read_detections
+from ocr_engine import read_detections, warm_up_ocr
 from preprocess import decode_image, prepare_image
 from table_parser import group_rows, merge_pages, parse_page
 
-app = FastAPI(title='Report OCR')
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # PaddleOCR lazily downloads/loads its models. Do that at Render startup
+    # so Netlify's short request timeout is not spent initializing OCR.
+    warm_up_ocr()
+    yield
+
+
+app = FastAPI(title='Report OCR', lifespan=lifespan)
 
 
 class ReportImage(BaseModel):
