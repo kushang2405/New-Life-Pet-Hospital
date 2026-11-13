@@ -1,61 +1,14 @@
 import base64
-import logging
-import os
-from contextlib import asynccontextmanager
 from typing import Literal
 
-import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from ocr_engine import read_detections, warm_up_ocr
+from ocr_engine import read_detections
 from preprocess import decode_image, prepare_image
 from table_parser import group_rows, merge_pages, parse_page
 
-logger = logging.getLogger(__name__)
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    # PaddleOCR lazily downloads/loads its models. Do that at Render startup
-    # so Netlify's short request timeout is not spent initializing OCR.
-    warm_up_ocr()
-    yield
-
-
-app = FastAPI(title='Report OCR', lifespan=lifespan)
-
-# OCR is called directly by the signed-in web app so that image processing is
-# not constrained by the Netlify function request timeout.
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv('CORS_ORIGINS', '').split(',')
-    if origin.strip()
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=False,
-    allow_methods=['POST'],
-    allow_headers=['Authorization', 'Content-Type'],
-)
-
-auth_scheme = HTTPBearer(auto_error=False)
-
-
-def require_auth(credentials: HTTPAuthorizationCredentials | None = Depends(auth_scheme)):
-    secret = os.getenv('JWT_SECRET')
-    if not secret:
-        raise HTTPException(status_code=503, detail='OCR authentication is not configured.')
-    if not credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Authentication required.')
-    try:
-        return jwt.decode(credentials.credentials, secret, algorithms=['HS256'])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Session expired. Please sign in again.')
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid session token.')
+app = FastAPI(title='Report OCR')
 
 
 class ReportImage(BaseModel):
@@ -68,18 +21,12 @@ class ExtractRequest(BaseModel):
     images: list[ReportImage] = Field(min_length=1, max_length=10)
 
 
-@app.get('/')
-def root_health():
-    """Render's default health probe requests the service root."""
-    return {'status': 'ok'}
-
-
 @app.get('/health')
 def health():
     return {'status': 'ok'}
 
 
-@app.post('/extract', dependencies=[Depends(require_auth)])
+@app.post('/extract')
 def extract(request: ExtractRequest):
     pages = []
     raw_sections = []
@@ -88,17 +35,10 @@ def extract(request: ExtractRequest):
             source = decode_image(base64.b64decode(image.dataUrl.split(',')[-1]))
         except ValueError as err:
             raise HTTPException(status_code=400, detail=f'{image.name or "Image"}: {err}')
-        try:
-            prepared = prepare_image(source)
-            detections = read_detections(prepared)
-            pages.append(parse_page(detections, prepared.shape[1], request.reportType))
-            raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
-        except Exception as err:
-            logger.exception('OCR processing failed for %s', image.name or 'uploaded image')
-            raise HTTPException(
-                status_code=500,
-                detail=f'{image.name or "Image"}: OCR processing failed ({type(err).__name__}: {err})',
-            ) from err
+        prepared = prepare_image(source)
+        detections = read_detections(prepared)
+        pages.append(parse_page(detections, prepared.shape[1], request.reportType))
+        raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
 
     rows = merge_pages(pages)
     warnings = []
