@@ -8,7 +8,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://newlifepethospital.netlify.app/api/:path*',
+            destination: `${process.env.APP_URL}/api/:path*`,
       },
     ];
   },
