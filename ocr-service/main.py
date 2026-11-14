@@ -30,21 +30,23 @@ def health():
 def extract(request: ExtractRequest):
     pages = []
     raw_sections = []
+    warnings = []
     for image in request.images:
         try:
-            source = decode_image(base64.b64decode(image.dataUrl.split(',')[-1]))
-        except ValueError as err:
-            raise HTTPException(status_code=400, detail=f'{image.name or "Image"}: {err}')
-        prepared = prepare_image(source)
-        detections = read_detections(prepared)
-        pages.append(parse_page(detections, prepared.shape[1], request.reportType))
-        raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
+            raw_b64 = image.dataUrl.split(',')[-1]
+            source = decode_image(base64.b64decode(raw_b64))
+            prepared = prepare_image(source)
+            detections = read_detections(prepared)
+            pages.append(parse_page(detections, prepared.shape[1], request.reportType))
+            raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
+        except Exception as err:
+            warnings.append(f'{image.name or "Photo"}: {err}')
+            continue
 
     rows = merge_pages(pages)
-    warnings = []
-    if not rows:
+    if not rows and not warnings:
         warnings.append('No result rows were found. Try a straighter, sharper photo of the whole table.')
-    needs_review = sum(1 for row in rows if row['needsReview'])
+    needs_review = sum(1 for row in rows if row.get('needsReview'))
     if needs_review:
         warnings.append(f'{needs_review} row(s) are highlighted because the reading was unclear. Please check them.')
     return {'rows': rows, 'warnings': warnings, 'rawText': '\n\n'.join(raw_sections)}

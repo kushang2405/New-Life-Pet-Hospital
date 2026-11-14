@@ -58,16 +58,22 @@ def _scale_factor(longest: int) -> float:
 
 
 def prepare_image(image: np.ndarray) -> np.ndarray:
-    quad = _find_page_quad(image)
-    if quad is not None:
-        image = _warp_to_quad(image, quad)
+    try:
+        quad = _find_page_quad(image)
+        if quad is not None:
+            image = _warp_to_quad(image, quad)
+    except Exception:
+        pass
 
-    scale = _scale_factor(max(image.shape[:2]))
-    if scale != 1.0:
-        interpolation = cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA
-        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=interpolation)
+    try:
+        scale = _scale_factor(max(image.shape[:2]))
+        if scale != 1.0:
+            interpolation = cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA
+            image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=interpolation)
 
-    image = cv2.fastNlMeansDenoisingColored(image, None, 5, 5, 7, 21)
-    lightness, green_red, blue_yellow = cv2.split(cv2.cvtColor(image, cv2.COLOR_BGR2LAB))
-    lightness = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(lightness)
-    return cv2.cvtColor(cv2.merge((lightness, green_red, blue_yellow)), cv2.COLOR_LAB2BGR)
+        image = cv2.fastNlMeansDenoisingColored(image, None, 5, 5, 7, 21)
+        lightness, green_red, blue_yellow = cv2.split(cv2.cvtColor(image, cv2.COLOR_BGR2LAB))
+        lightness = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(lightness)
+        return cv2.cvtColor(cv2.merge((lightness, green_red, blue_yellow)), cv2.COLOR_LAB2BGR)
+    except Exception:
+        return image

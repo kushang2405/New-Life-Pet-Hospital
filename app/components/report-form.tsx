@@ -86,13 +86,46 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
     setNotice('');
     setOcrBusy(true);
     try {
-      const images = await Promise.all(photos.map(async (file) => ({ name: file.name, dataUrl: await compressReportImage(file) })));
-      const result = await authFetch('/ocr/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
+      const allRows: ReportAnalyte[] = [];
+      const allRawTexts: string[] = [];
+      const allWarnings: string[] = [];
+
+      for (let i = 0; i < photos.length; i++) {
+        const file = photos[i];
+        if (photos.length > 1) {
+          setNotice(`Reading photo ${i + 1} of ${photos.length} (${file.name})...`);
+        }
+        const dataUrl = await compressReportImage(file);
+        const result = (await authFetch('/ocr/extract', {
+          method: 'POST',
+          body: JSON.stringify({ reportType, images: [{ name: file.name, dataUrl }] }),
+        })) as OcrExtractResult;
+
+        if (result.rows && Array.isArray(result.rows)) {
+          allRows.push(...result.rows);
+        }
+        if (result.rawText) {
+          allRawTexts.push(result.rawText);
+        }
+        if (result.warnings && Array.isArray(result.warnings)) {
+          allWarnings.push(...result.warnings);
+        }
+      }
+
+      const seen = new Set<string>();
+      const mergedRows: ReportAnalyte[] = [];
+      for (const row of allRows) {
+        const key = row.name.toLowerCase().trim();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        mergedRows.push(row);
+      }
+
       setImageName(photos.map((file) => file.name).join(' · '));
-      setOcrText(result.rawText);
-      setRows(result.rows.length ? applyReferenceRanges(result.rows, reportType) : [emptyRow(reportType)]);
-      const summary = `${result.rows.length} result rows read from ${photos.length} image${photos.length === 1 ? '' : 's'}.`;
-      setNotice([summary, ...result.warnings].join(' '));
+      setOcrText(allRawTexts.join('\n\n'));
+      setRows(mergedRows.length ? applyReferenceRanges(mergedRows, reportType) : [emptyRow(reportType)]);
+      const summary = `${mergedRows.length} result rows read from ${photos.length} image${photos.length === 1 ? '' : 's'}.`;
+      setNotice([summary, ...allWarnings].filter(Boolean).join(' '));
     } catch (err) {
       setError((err as Error).message || 'Could not read the uploaded images.');
     } finally {

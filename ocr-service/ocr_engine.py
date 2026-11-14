@@ -16,18 +16,32 @@ def _engine():
 
 
 def read_detections(image: np.ndarray) -> list[dict]:
-    page = _engine().predict(image)[0]
+    try:
+        results = _engine().predict(image)
+        if not results:
+            return []
+        page = results[0]
+    except Exception:
+        return []
+
     detections = []
-    for text, score, polygon in zip(page['rec_texts'], page['rec_scores'], page['rec_polys']):
-        points = np.asarray(polygon, dtype=float)
-        text = str(text).strip()
-        if not text:
+    rec_texts = page.get('rec_texts', []) if isinstance(page, dict) else []
+    rec_scores = page.get('rec_scores', []) if isinstance(page, dict) else []
+    rec_polys = page.get('rec_polys', []) if isinstance(page, dict) else []
+
+    for text, score, polygon in zip(rec_texts, rec_scores, rec_polys):
+        try:
+            points = np.asarray(polygon, dtype=float)
+            text = str(text).strip()
+            if not text:
+                continue
+            detections.append({
+                'text': text,
+                'score': float(score),
+                'x': float(points[:, 0].mean()),
+                'y': float(points[:, 1].mean()),
+                'h': float(points[:, 1].max() - points[:, 1].min()),
+            })
+        except Exception:
             continue
-        detections.append({
-            'text': text,
-            'score': float(score),
-            'x': float(points[:, 0].mean()),
-            'y': float(points[:, 1].mean()),
-            'h': float(points[:, 1].max() - points[:, 1].min()),
-        })
     return detections
