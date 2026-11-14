@@ -131,7 +131,6 @@ const StaffSchema = new mongoose.Schema(
       default: 'Active',
     },
     shift: { type: String, default: '' },
-    // HR fields
     hireDate: { type: String, default: '' },
     department: { type: String, default: '' },
     employmentType: { type: String, enum: ['Full-time', 'Part-time', 'Contract', 'Intern', 'Volunteer'], default: 'Full-time' },

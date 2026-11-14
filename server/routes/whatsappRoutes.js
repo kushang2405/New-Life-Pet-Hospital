@@ -5,7 +5,6 @@ const Certificate = require('../models/Certificate');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
 const Appointment = require('../models/Appointment');
-const WhatsappLog = require('../models/WhatsappLog');
 const { normalizePhone, sendPdfDocument, verifyWebhookSignature } = require('../services/whatsapp');
 const { sendDueReminders } = require('../services/appointmentReminders');
 const { authRequired } = require('../middleware/authMiddleware');
@@ -43,52 +42,17 @@ router.post('/webhook', async (req, res) => {
   const statuses = (req.body?.entry || [])
     .flatMap((entry) => entry.changes || [])
     .flatMap((change) => change.value?.statuses || []);
-  await Promise.all(statuses.map(async (status) => {
-    const error = status.errors?.[0]?.title || status.errors?.[0]?.message || '';
-    const sendLog = await WhatsappLog.findOne({ messageId: status.id, event: 'sent' }).lean();
-    await Promise.all([
-      Appointment.updateOne(
-        { whatsappMessageId: status.id },
-        { $set: { whatsappStatus: status.status || '', whatsappError: error } },
-      ),
-      WhatsappLog.create({
-        event: 'status',
-        messageId: status.id || '',
-        recipient: status.recipient_id || '',
-        ownerName: sendLog?.ownerName || '',
-        petName: sendLog?.petName || '',
-        appointmentId: sendLog?.appointmentId || '',
-        status: status.status || '',
-        error,
-      }),
-    ]);
-  }));
+  await Promise.all(statuses.map((status) => Appointment.updateOne(
+    { whatsappMessageId: status.id },
+    {
+      $set: {
+        whatsappStatus: status.status || '',
+        whatsappError: status.errors?.[0]?.title || status.errors?.[0]?.message || '',
+      },
+    },
+  )));
   res.sendStatus(200);
 });
-
-// Meta calls the webhook routes above without a clinic session. All other
-// routes in this router expose clinic or patient information.
-router.use(authRequired);
-
-router.get(
-  '/logs',
-  asyncHandler(async (req, res) => {
-    const logs = await WhatsappLog.find().sort({ createdAt: -1 }).limit(100).lean();
-    res.json({
-      logs: logs.map((log) => ({
-        id: String(log._id),
-        createdAt: log.createdAt,
-        event: log.event,
-        status: log.status,
-        error: log.error,
-        ownerName: log.ownerName,
-        petName: log.petName,
-        recipient: log.recipient,
-        messageId: log.messageId,
-      })),
-    });
-  }),
-);
 
 router.get(
   '/reminder-stats',

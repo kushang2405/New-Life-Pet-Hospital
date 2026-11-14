@@ -25,7 +25,7 @@ const API_BASE =
     ? (window as unknown as { __API_BASE__?: string }).__API_BASE__ || process.env.NEXT_PUBLIC_API_BASE_URL || '/api'
     : process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
-export function getAuthToken(): string | null {
+function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(TOKEN_KEY);
 }
@@ -42,7 +42,7 @@ function getStoredUser(): User | null {
 }
 
 export async function authFetch(path: string, options?: RequestInit): Promise<any> {
-  const token = getAuthToken();
+  const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -53,22 +53,10 @@ export async function authFetch(path: string, options?: RequestInit): Promise<an
     },
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    let body: any = {};
-    try {
-      body = JSON.parse(text);
-    } catch {}
-    const msg =
-      body.message ||
-      body.error ||
-      (text && text.length < 250 && !text.includes('<!DOCTYPE') ? text : `Request failed (${res.status})`);
-    throw new Error(msg);
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Request failed (${res.status})`);
   }
   return res.json();
-}
-
-export async function ocrFetch(path: string, options?: RequestInit): Promise<any> {
-  return authFetch(`/ocr${path}`, options);
 }
 
 export async function login(email: string, password: string): Promise<User> {
@@ -95,7 +83,7 @@ export function getUser(): User | null {
 }
 
 export async function refreshUser(): Promise<User | null> {
-  const token = getAuthToken();
+  const token = getToken();
   if (!token) return null;
   try {
     const user = await authFetch('/auth/me');

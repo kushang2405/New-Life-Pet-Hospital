@@ -1,17 +1,11 @@
-/**
- * Express router factory for a generic CRUD resource.
- * Generates standard REST routes for any model.
- */
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const createCrudController = require('../controllers/crudController');
-const { authRequired } = require('../middleware/authMiddleware');
 
 function createCrudRoutes(Model) {
   const router = express.Router();
   const ctrl = createCrudController(Model);
 
-  router.use(authRequired);
   router.get('/', ctrl.list);
   router.get('/:id', ctrl.getById);
   router.post('/', ctrl.create);

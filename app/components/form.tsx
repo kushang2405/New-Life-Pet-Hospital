@@ -156,7 +156,6 @@ export function Field({
 export function Input({
   value, onChange, defaultValue, placeholder, type = 'text', icon: Icon, suffix, disabled,
   error, clearable, onEnter, className = '', autoFocus, maxLength, name, readOnly,
-  autoComplete,
 }: {
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -174,7 +173,6 @@ export function Input({
   maxLength?: number;
   name?: string;
   readOnly?: boolean;
-  autoComplete?: React.HTMLInputAutoCompleteAttribute;
 }) {
   const [val, emit] = useStringValue<React.ChangeEvent<HTMLInputElement>>(value, defaultValue, onChange);
   const showClear = clearable && val.length > 0 && !disabled && !readOnly;
@@ -186,7 +184,6 @@ export function Input({
       <input
         type={type}
         name={name}
-        autoComplete={autoComplete}
         value={val}
         onChange={(e) => emit(e.target.value)}
         onKeyDown={onEnter ? (e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } } : undefined}

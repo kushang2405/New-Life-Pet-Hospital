@@ -43,11 +43,15 @@ export default function CertificatesPage() {
   const pageData = paginate(filtered, page);
 
   useEffect(() => {
-    authFetch('/certificates')
-      .then((data: CertificateSummary[]) => setCertificates(data))
-      .catch(() => setLoadError('Could not load saved certificates.'));
+    if (db?.certificates) {
+      setCertificates(db.certificates);
+    } else {
+      authFetch('/certificates')
+        .then((data: CertificateSummary[]) => setCertificates(data))
+        .catch(() => setLoadError('Could not load saved certificates.'));
+    }
     fetchLetterhead().then(setLetterhead).catch(() => {});
-  }, []);
+  }, [db?.certificates]);
 
   const openCertificate = async (id: string) => {
     setOpeningId(id);

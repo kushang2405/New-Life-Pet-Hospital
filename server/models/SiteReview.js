@@ -1,9 +1,5 @@
 const mongoose = require('mongoose');
 
-/**
- * A review submitted through the public website. Held unpublished until
- * a staff member approves it, then rendered on /site/reviews.
- */
 const SiteReviewSchema = new mongoose.Schema(
   {
     reference: { type: String, default: '', unique: true, sparse: true },

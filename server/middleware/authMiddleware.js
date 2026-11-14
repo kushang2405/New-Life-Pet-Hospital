@@ -1,7 +1,3 @@
-/**
- * Auth middleware — JWT verification, role-based access control,
- * and branch-level access checks.
- */
 const jwt = require('jsonwebtoken');
 const Staff = require('../models/Staff');
 

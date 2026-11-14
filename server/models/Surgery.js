@@ -71,7 +71,6 @@ const SurgerySchema = new mongoose.Schema(
     prescriptionIds: [{ type: String, default: '' }],
     invoiceId: { type: String, default: '' },
 
-    // Booking
     procedureName: { type: String, default: '' },
     procedureType: { type: String, enum: ['Planned', 'Emergency'], default: 'Planned' },
     category: {
@@ -89,22 +88,17 @@ const SurgerySchema = new mongoose.Schema(
       default: 'Scheduled',
     },
 
-    // Theater allocation
     theater: { type: String, default: '' },
 
-    // Staff assignments
     staff: [StaffAssignmentSchema],
 
-    // Equipment checklist
     equipmentChecklist: [EquipmentItemSchema],
 
-    // Consent
     consentSigned: { type: Boolean, default: false },
     consentSignedBy: { type: String, default: '' },
     consentDate: { type: String, default: '' },
     consentNotes: { type: String, default: '' },
 
-    // Pre-operative
     preOpNotes: { type: String, default: '' },
     preOpVitals: {
       weightKg: { type: Number, default: 0 },
@@ -119,7 +113,6 @@ const SurgerySchema = new mongoose.Schema(
     preOpBloodwork: { type: String, default: '' },
     fastingHours: { type: Number, default: 8 },
 
-    // Surgery notes
     surgeryNotes: { type: String, default: '' },
     findings: { type: String, default: '' },
     complications: { type: String, default: '' },
@@ -129,7 +122,6 @@ const SurgerySchema = new mongoose.Schema(
       default: 'Pending',
     },
 
-    // Anesthesia record
     anestheticProtocol: { type: String, default: '' },
     premedication: { type: String, default: '' },
     inductionAgent: { type: String, default: '' },
@@ -140,12 +132,10 @@ const SurgerySchema = new mongoose.Schema(
     fluidTherapy: { type: String, default: '' },
     anesthesiaVitals: [AnesthesiaVitalSchema],
 
-    // Recovery monitoring
     recoveryVitals: [RecoveryVitalSchema],
     recoveryNotes: { type: String, default: '' },
     painManagement: { type: String, default: '' },
 
-    // Discharge
     dischargeDate: { type: String, default: '' },
     dischargeSummary: { type: String, default: '' },
     homeCareInstructions: { type: String, default: '' },

@@ -1,7 +1,3 @@
-/**
- * Server entry point.
- * Connects to MongoDB, then starts the Express server.
- */
 require('dotenv').config();
 
 const { connectDB } = require('./config/db');

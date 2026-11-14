@@ -1,9 +1,6 @@
 const mongoose = require('mongoose');
 
-/**
- * A client segment. `rules` is a structured predicate list evaluated on the
- * client against the loaded DB, so counts are always live rather than stored.
- */
+// Counts are computed client-side from loaded data, so they are never stored.
 const SegmentSchema = new mongoose.Schema(
   {
     name: { type: String, default: '' },

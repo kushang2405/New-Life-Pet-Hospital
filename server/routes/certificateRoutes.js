@@ -1,8 +1,8 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const createCrudRoutes = require('./crudRoutes');
-const Certificate = require('../models/Certificate');
 const { authRequired } = require('../middleware/authMiddleware');
+const Certificate = require('../models/Certificate');
 
 const router = express.Router();
 

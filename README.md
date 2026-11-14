@@ -40,7 +40,6 @@ The package includes the following main directories and files:
 
 - `app/` — Next.js frontend pages, layouts, and components.
 - `server/` — Express API, routes, controllers, middleware, models, and database configuration.
-- `netlify/` — Netlify function integration.
 - `public/` — Static frontend assets.
 - `next.config.js` — Next.js configuration.
 - `tailwind.config.ts` — Tailwind CSS configuration.
@@ -262,19 +261,7 @@ The Express API must also be deployed and started separately if required by the 
 
 Do not use `npm run dev` as the production start command. A successful frontend build does not by itself confirm that API requests, authentication, and database operations work correctly.
 
-## 12. Netlify Deployment
-
-If you deploy using the included Netlify integration, configure the required environment variables in the Netlify project settings. Depending on the integration, these may include:
-
-- `JWT_SECRET`
-- `MONGODB_URI`
-- `MONGODB_DB`
-
-Use the exact variables required by the included Netlify function. Netlify functions do not automatically read a local `.env` file. Add variables through the deployment settings and redeploy after changing them.
-
-Verify that the frontend, API routes, authentication, and database connection work in the deployed environment. Deploying the Next.js frontend alone does not necessarily start a separate Express API.
-
-## 13. Health Check and Troubleshooting
+## 12. Health Check and Troubleshooting
 
 If the included API exposes the following health endpoint, it can be used to check API availability:
 

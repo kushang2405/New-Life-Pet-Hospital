@@ -1,10 +1,5 @@
 const mongoose = require('mongoose');
 
-/**
- * An enquiry submitted from the public website (contact form, FAQ
- * "ask a question", or an appointment-request note). Reception works
- * this queue from the admin side.
- */
 const MessageSchema = new mongoose.Schema(
   {
     reference: { type: String, default: '', unique: true, sparse: true },

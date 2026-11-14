@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-/** A newsletter subscriber captured from the public blog page. */
 const SubscriberSchema = new mongoose.Schema(
   {
     email: { type: String, default: '', unique: true, sparse: true },

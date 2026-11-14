@@ -4,7 +4,8 @@
  * Mutations go through individual REST endpoints per collection.
  */
 
-import { getAuthToken } from './auth';
+import type { SavedReport } from './report-types';
+import type { CertificateSummary } from './certificate-templates';
 
 export const API_BASE =
   typeof window !== 'undefined'
@@ -38,6 +39,8 @@ export type DB = {
   messages: SiteMessage[];
   siteReviews: SiteReview[];
   subscribers: Subscriber[];
+  reports: SavedReport[];
+  certificates: CertificateSummary[];
 };
 
 export type FamilyMember = {
@@ -880,6 +883,10 @@ export type CollectionType<C extends Collection> = C extends 'owners'
   ? SiteReview
   : C extends 'subscribers'
   ? Subscriber
+  : C extends 'reports'
+  ? SavedReport
+  : C extends 'certificates'
+  ? CertificateSummary
   : never;
 
 export type StaffAssignment = {
@@ -1165,7 +1172,9 @@ export type Collection =
   | 'segments'
   | 'messages'
   | 'siteReviews'
-  | 'subscribers';
+  | 'subscribers'
+  | 'reports'
+  | 'certificates';
 
 const endpointMap: Record<Collection, string> = {
   owners: 'owners',
@@ -1194,6 +1203,8 @@ const endpointMap: Record<Collection, string> = {
   messages: 'messages',
   siteReviews: 'site-reviews',
   subscribers: 'subscribers',
+  reports: 'reports',
+  certificates: 'certificates',
 };
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -1201,7 +1212,7 @@ export const newId = (p: string) => `${p}_${Math.random().toString(36).slice(2, 
 export const today = todayISO;
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('petcare-pro-token') : null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -1212,8 +1223,12 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Request failed (${res.status})`);
+    const text = await res.text().catch(() => '');
+    let body: any = {};
+    try {
+      body = JSON.parse(text);
+    } catch {}
+    throw new Error(body.message || body.error || (text && text.length < 200 ? text : `Request failed (${res.status})`));
   }
   return res.json();
 }

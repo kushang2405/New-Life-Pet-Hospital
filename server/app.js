@@ -1,7 +1,3 @@
-/**
- * Main Express app setup.
- * Wires middleware, routes, and error handling.
- */
 const express = require('express');
 const cors = require('cors');
 const requestLogger = require('./middleware/requestLogger');
@@ -45,21 +41,6 @@ const whatsappRoutes = require('./routes/whatsappRoutes');
 const ocrRoutes = require('./routes/ocrRoutes');
 
 const app = express();
-
-// Netlify's serverless adapter exposes the request body as a Buffer.
-// Normalize it before Express's JSON middleware runs so API handlers receive
-// the same object shape in local and serverless deployments.
-app.use((req, res, next) => {
-  if (Buffer.isBuffer(req.body)) {
-    req.rawBody = req.body;
-    try {
-      req.body = JSON.parse(req.body.toString('utf8'));
-    } catch {
-      req.body = {};
-    }
-  }
-  next();
-});
 
 app.use(cors());
 app.use(

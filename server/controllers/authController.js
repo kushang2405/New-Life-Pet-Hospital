@@ -1,7 +1,3 @@
-/**
- * Auth controller — login, me, change password, request reset, confirm reset.
- * Uses JWT for stateless sessions and bcryptjs for password hashing.
- */
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const asyncHandler = require('../middleware/asyncHandler');

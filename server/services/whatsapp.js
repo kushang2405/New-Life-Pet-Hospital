@@ -62,8 +62,8 @@ async function sendAppointmentReminder(to, parameters) {
     type: 'template',
     recipient_type: 'individual',
     template: {
-      name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME,
-      language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE},
+      name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h',
+      language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US' },
       components: [
         {
           type: 'body',

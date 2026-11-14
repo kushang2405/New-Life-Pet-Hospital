@@ -1,7 +1,6 @@
 const Appointment = require('../models/Appointment');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
-const WhatsappLog = require('../models/WhatsappLog');
 const { normalizePhone, sendAppointmentReminder } = require('./whatsapp');
 
 const LEAD_MS = 24 * 60 * 60 * 1000;
@@ -37,29 +36,19 @@ async function sendDueReminders(now = new Date()) {
   let sent = 0;
   const errors = [];
   for (const appt of due) {
-    let ownerName = '';
-    let petName = '';
-    const appointmentId = String(appt._id);
     try {
       const [owner, pet] = await Promise.all([Owner.findById(appt.ownerId).lean(), Pet.findById(appt.petId).lean()]);
-      ownerName = owner?.name || '';
-      petName = pet?.name || '';
       const to = normalizePhone(owner?.phone);
       if (!to) {
-        const message = `${ownerName || 'An owner'} has no phone number`;
-        errors.push(message);
-        await WhatsappLog.create({ event: 'failed', status: 'failed', error: message, ownerName, petName, appointmentId });
+        errors.push(`${owner?.name || 'An owner'} has no phone number`);
         continue;
       }
-      const message = await sendAppointmentReminder(to, [ownerName, petName || 'your pet', `${appt.date} ${appt.time}`]);
-      const messageId = message.messages?.[0]?.id || '';
-      await Appointment.updateOne({ _id: appt._id }, { $set: { reminderSentAt: new Date(), whatsappMessageId: messageId, whatsappStatus: 'accepted' } });
-      await WhatsappLog.create({ event: 'sent', status: 'accepted', messageId, recipient: to, ownerName, petName, appointmentId });
+      const message = await sendAppointmentReminder(to, [owner.name, pet?.name || 'your pet', `${appt.date} ${appt.time}`]);
+      await Appointment.updateOne({ _id: appt._id }, { $set: { reminderSentAt: new Date(), whatsappMessageId: message.messages?.[0]?.id || '', whatsappStatus: 'accepted' } });
       sent += 1;
     } catch (err) {
-      console.error(`[reminders] Failed for appointment ${appointmentId}:`, err.message);
+      console.error(`[reminders] Failed for appointment ${appt._id}:`, err.message);
       errors.push(err.message);
-      await WhatsappLog.create({ event: 'failed', status: 'failed', error: err.message, ownerName, petName, appointmentId });
     }
   }
   return { due: due.length, sent, errors };

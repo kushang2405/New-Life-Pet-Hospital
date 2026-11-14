@@ -197,6 +197,8 @@ const emptyDB: DB = {
   messages: [],
   siteReviews: [],
   subscribers: [],
+  reports: [],
+  certificates: [],
 };
 
 export function useDB() {

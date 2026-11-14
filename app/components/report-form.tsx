@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileImage, Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Button, DateInput, EmptyState, Field, Input, Select, Textarea } from './ui';
-import { authFetch, ocrFetch } from '../lib/auth';
+import { authFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
 import { compressReportImage } from '../lib/report-images';
 import { applyCbcReferenceRanges, formatPetAge } from '../lib/report-parser';
@@ -87,20 +87,14 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
     setOcrBusy(true);
     try {
       const images = await Promise.all(photos.map(async (file) => ({ name: file.name, dataUrl: await compressReportImage(file) })));
-      let result: OcrExtractResult;
-      try {
-        result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
-      } catch (firstErr) {
-        // Automatic retry once for transient network or cloud hiccups
-        result = await ocrFetch('/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
-      }
+      const result = await authFetch('/ocr/extract', { method: 'POST', body: JSON.stringify({ reportType, images }) }) as OcrExtractResult;
       setImageName(photos.map((file) => file.name).join(' · '));
       setOcrText(result.rawText);
       setRows(result.rows.length ? applyReferenceRanges(result.rows, reportType) : [emptyRow(reportType)]);
       const summary = `${result.rows.length} result rows read from ${photos.length} image${photos.length === 1 ? '' : 's'}.`;
       setNotice([summary, ...result.warnings].join(' '));
     } catch (err) {
-      setError((err as Error).message || 'Could not read the uploaded images. Please try again.');
+      setError((err as Error).message || 'Could not read the uploaded images.');
     } finally {
       setOcrBusy(false);
     }
@@ -121,36 +115,22 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       setError('Select both an owner and a pet before generating the report.');
       return;
     }
-
-    const ownerId = String(selectedOwner.id || (selectedOwner as any)._id || '').trim();
-    const petId = String(selectedPet.id || (selectedPet as any)._id || '').trim();
-    if (!ownerId || !petId) {
-      setError('Selected owner or pet is missing a valid ID. Please re-select the patient.');
+    const analytes = rows.filter((row) => row.name.trim() || row.result.trim());
+    if (!analytes.length) {
+      setError('Add at least one result row before generating the report.');
       return;
     }
-
-    const cleanedAnalytes = rows
-      .filter((row) => (row.name || '').trim() || (row.result || '').trim())
-      .map((row) => ({
-        ...row,
-        name: (row.name || '').trim() || 'Analyte',
-        result: (row.result || '').trim(),
-        unit: (row.unit || '').trim(),
-        referenceRange: (row.referenceRange || '').trim(),
-        remarks: (row.remarks || '').trim(),
-      }));
-
     setSaveBusy(true);
     setError('');
     try {
-      const title = `${selectedPet.name || 'Patient'}-${reportType}`;
+      const title = `${selectedPet.name}-${reportType}`;
       const draft: ReportDraft = {
         reportType,
         title,
         owner: selectedOwner,
         pet: selectedPet,
         patientDetails: details,
-        analytes: applyReferenceRanges(cleanedAnalytes, reportType),
+        analytes: applyReferenceRanges(analytes, reportType),
         logoDataUrl: logoDataUrl || undefined,
       };
       const pdf = createReportPdf(draft);
@@ -165,12 +145,12 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
         body: JSON.stringify({
           reportType,
           title,
-          ownerId,
-          petId,
-          ownerSnapshot: { id: ownerId, name: selectedOwner.name, phone: selectedOwner.phone, email: selectedOwner.email, address: selectedOwner.address },
-          petSnapshot: { id: petId, ownerId, name: selectedPet.name, species: selectedPet.species, breed: selectedPet.breed, gender: selectedPet.gender, birthDate: selectedPet.birthDate, weightKg: selectedPet.weightKg },
+          ownerId: selectedOwner.id,
+          petId: selectedPet.id,
+          ownerSnapshot: { id: selectedOwner.id, name: selectedOwner.name, phone: selectedOwner.phone, email: selectedOwner.email, address: selectedOwner.address },
+          petSnapshot: { id: selectedPet.id, ownerId: selectedPet.ownerId, name: selectedPet.name, species: selectedPet.species, breed: selectedPet.breed, gender: selectedPet.gender, birthDate: selectedPet.birthDate, weightKg: selectedPet.weightKg },
           patientDetails: details,
-          analytes: applyReferenceRanges(cleanedAnalytes, reportType),
+          analytes: applyReferenceRanges(analytes, reportType),
           ocrText,
           sourceImageName: imageName,
           pdfData,

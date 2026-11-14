@@ -1,6 +1,3 @@
-/**
- * Attendance routes — punch in/out, leave requests, leave decisions.
- */
 const express = require('express');
 const router = express.Router();
 const { authRequired, requireRole } = require('../middleware/authMiddleware');

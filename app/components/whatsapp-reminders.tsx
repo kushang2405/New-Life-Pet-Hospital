@@ -12,24 +12,6 @@ type ReminderStats = {
   recent: { id: string; ownerName: string; petName: string; date: string; time: string; sentAt: string; whatsappStatus: string; whatsappError: string }[];
 };
 
-type ReminderLog = {
-  id: string;
-  createdAt: string;
-  event: 'sent' | 'failed' | 'status';
-  status: string;
-  error: string;
-  ownerName: string;
-  petName: string;
-  recipient: string;
-  messageId: string;
-};
-
-const EVENT_LABEL: Record<ReminderLog['event'], string> = {
-  sent: 'Sent to WhatsApp',
-  failed: 'Failed',
-  status: 'Delivery update',
-};
-
 function StatTile({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
     <div className="rounded-xl border border-line bg-white p-4">
@@ -48,18 +30,14 @@ const SAMPLE_REMINDER = {
 
 export default function WhatsAppReminders() {
   const [stats, setStats] = useState<ReminderStats | null>(null);
-  const [logs, setLogs] = useState<ReminderLog[]>([]);
   const [error, setError] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [runMessage, setRunMessage] = useState('');
 
   function loadStats() {
-    Promise.all([authFetch('/whatsapp/reminder-stats'), authFetch('/whatsapp/logs')])
-      .then(([statsData, logData]: [ReminderStats, { logs: ReminderLog[] }]) => {
-        setStats(statsData);
-        setLogs(logData.logs);
-      })
+    authFetch('/whatsapp/reminder-stats')
+      .then((data: ReminderStats) => setStats(data))
       .catch((err: Error) => setError(err.message || 'Could not load WhatsApp reminder activity.'));
   }
 
@@ -125,39 +103,6 @@ export default function WhatsAppReminders() {
           </tbody>
         </table>
         {!stats.recent.length && <EmptyState icon={MessageCircle} title="No reminders accepted yet" hint="Reminders are sent automatically 24 hours before each appointment." />}
-      </div>
-      <div className="flex items-center gap-2 text-sm font-semibold text-ink mt-6 mb-3">
-        <MessageCircle className="w-4 h-4 text-plum" /> Delivery log
-      </div>
-      <div className="overflow-x-auto border border-line rounded-xl">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-canvas text-ink/55 text-xs">
-            <tr>
-              <th className="text-left p-3">Time</th>
-              <th className="text-left p-3">Event</th>
-              <th className="text-left p-3">Owner / Pet</th>
-              <th className="text-left p-3">Recipient</th>
-              <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Message ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((l) => (
-              <tr key={l.id} className="border-t border-line">
-                <td className="p-3 text-ink/70 whitespace-nowrap">{new Date(l.createdAt).toLocaleString()}</td>
-                <td className="p-3 text-ink">{EVENT_LABEL[l.event]}</td>
-                <td className="p-3 text-ink/70">{[l.ownerName, l.petName].filter(Boolean).join(' / ') || '—'}</td>
-                <td className="p-3 text-ink/70">{l.recipient || '—'}</td>
-                <td className="p-3">
-                  <span className={`text-xs font-medium capitalize ${l.status === 'failed' ? 'text-coral' : l.status === 'delivered' || l.status === 'read' ? 'text-emerald-700' : 'text-amber-700'}`}>{l.status || '—'}</span>
-                  {l.error && <div className="text-[10px] text-coral mt-1">{l.error}</div>}
-                </td>
-                <td className="p-3 text-[10px] text-ink/50 font-mono">{l.messageId || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!logs.length && <EmptyState icon={MessageCircle} title="No activity yet" hint="Every reminder attempt and WhatsApp delivery update will be logged here." />}
       </div>
       <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title="Reminder preview">
         <div className="space-y-4">

@@ -1,6 +1,4 @@
-// Keeps direct OCR uploads fast enough for modest hosted CPU instances while
-// preserving sufficient detail for standard lab-report tables.
-const MAX_SIDE = 1100;
+const MAX_SIDE = 1800;
 
 export async function compressReportImage(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
@@ -12,5 +10,5 @@ export async function compressReportImage(file: File): Promise<string> {
   if (!context) throw new Error('This browser cannot prepare the photo for reading.');
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return canvas.toDataURL('image/jpeg', 0.72);
+  return canvas.toDataURL('image/jpeg', 0.9);
 }

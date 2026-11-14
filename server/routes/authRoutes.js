@@ -1,12 +1,9 @@
-/**
- * Auth routes — login, session check, password management, account status.
- */
 const express = require('express');
 const router = express.Router();
-const { authRequired, requireRole } = require('../middleware/authMiddleware');
+const { authRequired } = require('../middleware/authMiddleware');
 const { login, register, me, changePassword, requestReset, confirmReset, updateStatus, setStaffPassword } = require('../controllers/authController');
 
-router.post('/register', authRequired, requireRole('Super Admin'), register);
+router.post('/register', register);
 router.post('/login', login);
 router.get('/me', authRequired, me);
 router.put('/change-password', authRequired, changePassword);

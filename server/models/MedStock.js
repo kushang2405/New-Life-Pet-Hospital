@@ -29,7 +29,6 @@ const MedStockSchema = new mongoose.Schema(
     barcode: { type: String, default: '' },
     qrCode: { type: String, default: '' },
 
-    // Medicine details
     genericName: { type: String, default: '' },
     manufacturer: { type: String, default: '' },
     supplier: { type: String, default: '' },
@@ -42,7 +41,6 @@ const MedStockSchema = new mongoose.Schema(
     prescriptionRequired: { type: Boolean, default: false },
     controlledDrug: { type: Boolean, default: false },
 
-    // Batch tracking
     batches: [BatchSchema],
     batch: { type: String, default: '' },
     expiry: { type: String, default: '' },

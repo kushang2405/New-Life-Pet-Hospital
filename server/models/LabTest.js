@@ -40,7 +40,6 @@ const LabTestSchema = new mongoose.Schema(
     appointmentId: { type: String, default: '' },
     invoiceId: { type: String, default: '' },
 
-    // Test details
     testType: {
       type: String,
       enum: ['Blood test', 'Urine test', 'Stool test', 'Imaging'],
@@ -54,7 +53,6 @@ const LabTestSchema = new mongoose.Schema(
     testName: { type: String, default: '' },
     templateId: { type: String, default: '' },
 
-    // Ordering
     requestedBy: { type: String, default: '' },
     dateOrdered: { type: String, default: '' },
     dateCompleted: { type: String, default: '' },
@@ -69,7 +67,6 @@ const LabTestSchema = new mongoose.Schema(
       default: 'Ordered',
     },
 
-    // Sample
     barcode: { type: String, default: '' },
     sampleType: { type: String, default: '' },
     sampleVolume: { type: String, default: '' },
@@ -79,14 +76,12 @@ const LabTestSchema = new mongoose.Schema(
     storageCondition: { type: String, default: '' },
     sampleTracking: [SampleTrackingSchema],
 
-    // Results
     results: [ResultParameterSchema],
     impression: { type: String, default: '' },
     findings: { type: String, default: '' },
     interpretation: { type: String, default: '' },
     notes: { type: String, default: '' },
 
-    // Imaging-specific
     imagingRegion: { type: String, default: '' },
     imagingModality: { type: String, default: '' },
     contrastUsed: { type: Boolean, default: false },
@@ -98,7 +93,6 @@ const LabTestSchema = new mongoose.Schema(
       description: { type: String, default: '' },
     }],
 
-    // Report
     reportGenerated: { type: Boolean, default: false },
     reportGeneratedDate: { type: String, default: '' },
     digitallySigned: { type: Boolean, default: false },
@@ -106,7 +100,6 @@ const LabTestSchema = new mongoose.Schema(
     signedDate: { type: String, default: '' },
     signedRole: { type: String, default: '' },
 
-    // Billing
     cost: { type: Number, default: 0 },
 
     createdAt: { type: String, default: '' },

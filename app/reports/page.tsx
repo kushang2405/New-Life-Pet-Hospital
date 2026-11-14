@@ -38,10 +38,14 @@ export default function ReportsPage() {
   const pageData = paginate(filtered, page);
 
   useEffect(() => {
-    authFetch('/reports')
-      .then((data: SavedReport[]) => setReports(data))
-      .catch(() => setLoadError('Could not load saved reports.'));
-  }, []);
+    if (db?.reports) {
+      setReports(db.reports);
+    } else {
+      authFetch('/reports')
+        .then((data: SavedReport[]) => setReports(data))
+        .catch(() => setLoadError('Could not load saved reports.'));
+    }
+  }, [db?.reports]);
 
   const openNew = () => {
     setEditing(null);

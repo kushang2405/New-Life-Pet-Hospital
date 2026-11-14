@@ -1,11 +1,4 @@
-/**
- * Generic CRUD controller factory.
- * Generates list, get-by-id, create, update, and delete handlers
- * for any Mongoose model. Keeps controllers DRY across all resources.
- *
- * The frontend generates its own string IDs (e.g. "apt_xyz") and sends
- * them in the body. We store that as _id so client and server stay in sync.
- */
+// Client-generated string IDs are stored as _id so client and server stay in sync.
 const asyncHandler = require('../middleware/asyncHandler');
 
 const SENSITIVE_FIELDS = ['password', 'resetToken', 'resetTokenExpiry'];
