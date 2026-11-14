@@ -121,7 +121,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="flex justify-center mb-8">
           {settings.clinicLogo ? (
-            <img src={settings.clinicLogo} alt={settings.clinicName} className="h-16 max-w-[220px] object-contain" />
+            <img src={settings.clinicLogo} alt={settings.clinicName} className="max-w-[150px] object-contain" />
           ) : (
             <div className="w-14 h-14 rounded-2xl bg-plum text-white flex items-center justify-center shadow-sm">
               <PawPrint className="w-7 h-7" />
