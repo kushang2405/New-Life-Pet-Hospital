@@ -11,12 +11,15 @@ import type { Role } from '../lib/platform';
 
 type Mode = 'login' | 'reset-request' | 'reset-confirm';
 
+const REMEMBER_KEY = 'petcare-pro-remember';
+
 export default function LoginPage() {
   const router = useRouter();
   const { settings } = useSettings();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
@@ -27,6 +30,20 @@ export default function LoginPage() {
   const [resetMsg, setResetMsg] = useState('');
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.remember) {
+          setEmail(parsed.email || '');
+          setPassword(parsed.password || '');
+          setRememberMe(true);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const em = params.get('email');
@@ -54,6 +71,11 @@ export default function LoginPage() {
     setError('');
     try {
       const u = await login(email, password);
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email, password, remember: true }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
       router.push(u.role === 'Staff' ? '/attendance' : '/');
     } catch (err) {
       setError((err as Error).message || 'Invalid email or password. Try a role card below for quick access.');
@@ -155,7 +177,17 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer select-none group">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-line text-plum focus:ring-plum accent-plum cursor-pointer"
+                    />
+                    <span className="text-xs text-ink/70 group-hover:text-ink font-medium">Remember me</span>
+                  </label>
+
                   <button
                     type="button"
                     onClick={() => { setMode('reset-request'); setError(''); setResetEmail(email); }}
@@ -174,7 +206,7 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <div className="mt-8">
+              {/* <div className="mt-8">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex-1 h-px bg-line" />
                   <span className="text-[11px] text-ink/40 font-medium uppercase tracking-wide">Quick role access</span>
@@ -212,7 +244,7 @@ export default function LoginPage() {
                     );
                   })}
                 </div>
-              </div>
+              </div> */}
             </>
           )}
 

@@ -38,9 +38,9 @@ export default function Sidebar({
       transform transition-transform duration-300 ease-out-soft
       ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
     `}>
-      <Link href="/" className="hv-slide-parent group flex items-center justify-center px-5 py-5 border-b border-line">
+      <Link href="/" className="hv-slide-parent group flex items-center justify-center py-1 border-b border-line">
         {settings.clinicLogo ? (
-          <img src={settings.clinicLogo} alt={settings.clinicName} className="hv-tile max-h-20 max-w-[180px] w-auto h-auto rounded-xl object-contain bg-white" />
+          <img src={settings.clinicLogo} alt={settings.clinicName} className="hv-tile max-w-[120px] w-auto h-auto rounded-xl object-contain bg-white" />
         ) : (
           <div className="hv-tile flex items-center justify-center w-16 h-16 rounded-2xl bg-plum text-white shadow-lift-sm">
             <PawPrint className="w-9 h-9" />

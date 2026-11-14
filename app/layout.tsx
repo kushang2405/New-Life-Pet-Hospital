@@ -8,22 +8,45 @@ const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-pl
 
 export const metadata: Metadata = {
   title: 'New Life Pet Hospital',
-  description: 'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
+  description:
+    'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
+
   robots: { index: true, follow: true },
+
   openGraph: {
     title: 'New Life Pet Hospital',
-    description: 'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
+    description:
+      'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
     siteName: 'New Life Pet Hospital',
     locale: 'en_IN',
     type: 'website',
   },
+
   twitter: {
     card: 'summary',
     title: 'New Life Pet Hospital',
-    description: 'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
+    description:
+      'New Life Pet Hospital, Surat, Gujarat. Patient records, appointments, billing and staff attendance in one place.',
   },
+
   manifest: '/manifest.json',
   category: 'medical',
+
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180' },
+    ],
+  },
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'New Life Pet Hospital',
+  },
 };
 
 export const viewport: Viewport = {
