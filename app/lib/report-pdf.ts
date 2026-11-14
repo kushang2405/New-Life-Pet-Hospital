@@ -166,6 +166,51 @@ function drawCbcTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], y: 
   return cursor;
 }
 
+function formatApprovedDate(dateStr?: string): string {
+  if (!dateStr) {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}-${m}-${y}`;
+  }
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) return dateStr;
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
+export async function optimizeLogoForPdf(dataUrl?: string): Promise<string | undefined> {
+  if (!dataUrl || !dataUrl.startsWith('data:image')) return dataUrl;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const MAX_W = 600;
+      const MAX_H = 180;
+      const scale = Math.min(1, MAX_W / img.width, MAX_H / img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export function createReportPdf(draft: ReportDraft): Blob {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const y = drawPageStart(doc, draft);
@@ -180,9 +225,11 @@ export function createReportPdf(draft: ReportDraft): Blob {
   doc.text(draft.patientDetails.doctorName ? `Dr. ${draft.patientDetails.doctorName}` : 'Dr. ____________________', 420, 778);
   doc.setFont('helvetica', 'normal');
   doc.text(draft.patientDetails.doctorPosition || 'Veterinary Doctor', 420, 792);
-  doc.setFontSize(7);
-  doc.setTextColor(90, 90, 90);
-  doc.text('Generated from the uploaded laboratory image. Verify results with the original report.', 38, 805);
+  const approvedDate = formatApprovedDate(draft.patientDetails.date);
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 60, 60);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`** This is an Electronically Approved Report.   **Report Approvd on : ${approvedDate}`, 38, 805);
   return doc.output('blob');
 }
 

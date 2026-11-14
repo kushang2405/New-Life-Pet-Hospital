@@ -7,7 +7,7 @@ import { authFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
 import { compressReportImage } from '../lib/report-images';
 import { applyCbcReferenceRanges, formatPetAge } from '../lib/report-parser';
-import { createReportPdf, openPdfBlobInNewTab } from '../lib/report-pdf';
+import { createReportPdf, openPdfBlobInNewTab, optimizeLogoForPdf } from '../lib/report-pdf';
 import type { OcrExtractResult, PatientDetails, ReportAnalyte, ReportDraft, ReportType, SavedReport } from '../lib/report-types';
 import type { Owner, Pet } from '../lib/api';
 
@@ -157,6 +157,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
     setError('');
     try {
       const title = `${selectedPet.name}-${reportType}`;
+      const optimizedLogo = await optimizeLogoForPdf(logoDataUrl);
       const draft: ReportDraft = {
         reportType,
         title,
@@ -164,7 +165,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
         pet: selectedPet,
         patientDetails: details,
         analytes: applyReferenceRanges(analytes, reportType),
-        logoDataUrl: logoDataUrl || undefined,
+        logoDataUrl: optimizedLogo || undefined,
       };
       const pdf = createReportPdf(draft);
       const pdfData = await new Promise<string>((resolve, reject) => {
@@ -187,7 +188,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
           ocrText,
           sourceImageName: imageName,
           pdfData,
-          logoData: logoDataUrl,
+          logoData: optimizedLogo || '',
         }),
       }) as SavedReport;
       openPdfBlobInNewTab(pdf);
