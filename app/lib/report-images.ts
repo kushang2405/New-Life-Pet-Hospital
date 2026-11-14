@@ -1,4 +1,4 @@
-const MAX_SIDE = 1800;
+const MAX_SIDE = 1600;
 
 export async function compressReportImage(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
@@ -8,7 +8,9 @@ export async function compressReportImage(file: File): Promise<string> {
   canvas.height = Math.round(bitmap.height * scale);
   const context = canvas.getContext('2d');
   if (!context) throw new Error('This browser cannot prepare the photo for reading.');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return canvas.toDataURL('image/jpeg', 0.9);
+  return canvas.toDataURL('image/jpeg', 0.8);
 }

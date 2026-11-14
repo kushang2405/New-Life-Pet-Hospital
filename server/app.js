@@ -45,12 +45,13 @@ const app = express();
 app.use(cors());
 app.use(
   express.json({
-    limit: '10mb',
+    limit: '50mb',
     verify: (req, res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(requestLogger);
 
 app.get('/api/health', (req, res) => {
