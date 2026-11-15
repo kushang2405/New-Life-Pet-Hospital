@@ -24,6 +24,7 @@ export default function ReportsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [sendingId, setSendingId] = useState('');
+  const [openingId, setOpeningId] = useState('');
   const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -55,6 +56,25 @@ export default function ReportsPage() {
   const openEdit = (report: SavedReport) => {
     setEditing(report);
     setFormOpen(true);
+  };
+
+  const openReport = async (report: SavedReport) => {
+    if (report.pdfData) {
+      openPdfDataUrlInNewTab(report.pdfData);
+      return;
+    }
+    setOpeningId(report.id);
+    setNotice(null);
+    try {
+      const full = (await authFetch(`/reports/${report.id}`)) as SavedReport;
+      if (!full?.pdfData) throw new Error('This report has no PDF saved.');
+      report.pdfData = full.pdfData;
+      openPdfDataUrlInNewTab(full.pdfData);
+    } catch (err) {
+      setNotice({ tone: 'err', text: (err as Error).message || 'Could not open the report PDF.' });
+    } finally {
+      setOpeningId('');
+    }
   };
 
   const sendOnWhatsApp = async (report: SavedReport) => {
@@ -123,8 +143,8 @@ export default function ReportsPage() {
                 <td className="p-3 text-ink/70">{report.analytes?.length ?? 0}</td>
                 <td className="p-3">
                   <div className="flex items-center justify-end gap-2">
-                    {report.pdfData && <button onClick={() => sendOnWhatsApp(report)} disabled={sendingId === report.id} title="Send PDF on WhatsApp" aria-label="Send PDF on WhatsApp" className={`${actionButton} text-emerald-700 hover:bg-emerald-50 disabled:opacity-50`}><MessageCircle className="w-5 h-5" /></button>}
-                    {report.pdfData && <button onClick={() => openPdfDataUrlInNewTab(report.pdfData)} title="Open PDF" aria-label="Open PDF" className={`${actionButton} text-plum hover:bg-lilac`}><Eye className="w-5 h-5" /></button>}
+                    <button onClick={() => sendOnWhatsApp(report)} disabled={sendingId === report.id} title="Send PDF on WhatsApp" aria-label="Send PDF on WhatsApp" className={`${actionButton} text-emerald-700 hover:bg-emerald-50 disabled:opacity-50`}><MessageCircle className="w-5 h-5" /></button>
+                    <button onClick={() => openReport(report)} disabled={openingId === report.id} title="Open PDF" aria-label="Open PDF" className={`${actionButton} text-plum hover:bg-lilac disabled:opacity-50`}><Eye className="w-5 h-5" /></button>
                     <button onClick={() => openEdit(report)} title="Edit report" aria-label="Edit report" className={`${actionButton} text-sky-700 hover:bg-sky-50`}><Pencil className="w-5 h-5" /></button>
                     <button onClick={() => { setDeleteError(''); setDeleting(report); }} title="Delete report" aria-label="Delete report" className={`${actionButton} text-coral hover:bg-coral/10`}><Trash2 className="w-5 h-5" /></button>
                   </div>
