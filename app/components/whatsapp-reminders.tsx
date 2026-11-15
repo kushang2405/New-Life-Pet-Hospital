@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { authFetch } from '../lib/auth';
-import { Button, Card, EmptyState, Modal } from './ui';
+import { Button, Card, EmptyState, Field, Input, Modal } from './ui';
 
 type ReminderStats = {
   totalSent: number;
@@ -35,6 +35,31 @@ export default function WhatsAppReminders() {
   const [running, setRunning] = useState(false);
   const [runMessage, setRunMessage] = useState('');
 
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [metaStatus, setMetaStatus] = useState<any>(null);
+
+  async function checkMetaStatus() {
+    setCheckingStatus(true);
+    setStatusOpen(true);
+    try {
+      const data = await authFetch('/whatsapp/templates/status');
+      setMetaStatus(data);
+    } catch (err) {
+      setMetaStatus({ success: false, error: (err as Error).message });
+    } finally {
+      setCheckingStatus(false);
+    }
+  }
+
+  const [testOpen, setTestOpen] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [testOwner, setTestOwner] = useState('Dr. Arshi Vala');
+  const [testPet, setTestPet] = useState('Buddy');
+  const [testTime, setTestTime] = useState('tomorrow at 10:30 AM');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ tone: 'ok' | 'err'; message: string } | null>(null);
+
   function loadStats() {
     authFetch('/whatsapp/reminder-stats')
       .then((data: ReminderStats) => setStats(data))
@@ -61,6 +86,35 @@ export default function WhatsAppReminders() {
     }
   }
 
+  async function handleSendTest(e: React.FormEvent) {
+    e.preventDefault();
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const res = await authFetch('/whatsapp/reminders/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: testPhone,
+          ownerName: testOwner,
+          petName: testPet,
+          dateTime: testTime,
+        }),
+      });
+      setTestResult({
+        tone: 'ok',
+        message: `Test reminder sent successfully to ${res.to}! (Message ID: ${res.messageId || 'accepted'})`,
+      });
+      loadStats();
+    } catch (err) {
+      setTestResult({
+        tone: 'err',
+        message: (err as Error).message || 'Failed to send test reminder.',
+      });
+    } finally {
+      setTestSending(false);
+    }
+  }
+
   if (error) return <Card className="p-5"><div className="text-sm text-coral">{error}</div></Card>;
   if (!stats) return <Card className="p-5"><div className="text-sm text-ink/50">Loading...</div></Card>;
 
@@ -68,7 +122,11 @@ export default function WhatsAppReminders() {
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
         {runMessage && <span className="mr-auto text-sm text-ink/70">{runMessage}</span>}
+        <Button variant="outline" size="sm" onClick={checkMetaStatus} disabled={checkingStatus}>
+          {checkingStatus ? 'Checking...' : 'Check Meta templates'}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>Preview reminder</Button>
+        <Button variant="outline" size="sm" onClick={() => { setTestOpen(true); setTestResult(null); }}>Send test reminder</Button>
         <Button size="sm" onClick={runDueReminders} disabled={running}>{running ? 'Sending...' : 'Send due reminders now'}</Button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -112,6 +170,134 @@ export default function WhatsAppReminders() {
           </div>
           <div className="flex justify-end">
             <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={testOpen} onClose={() => setTestOpen(false)} title="Send test reminder">
+        <form onSubmit={handleSendTest} className="space-y-3">
+          <p className="text-xs text-ink/60">
+            Send an instant test WhatsApp message to verify that your Meta WhatsApp API credentials and the{' '}
+            <code className="bg-canvas px-1 py-0.5 rounded text-plum font-semibold">appointment_reminder_24h</code> template are active.
+          </p>
+          <Field label="WhatsApp phone number (with country code, e.g. 919876543210)">
+            <Input
+              type="tel"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              placeholder="919876543210"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Owner name ({{1}})">
+              <Input value={testOwner} onChange={(e) => setTestOwner(e.target.value)} />
+            </Field>
+            <Field label="Pet name ({{2}})">
+              <Input value={testPet} onChange={(e) => setTestPet(e.target.value)} />
+            </Field>
+          </div>
+          <Field label="Appointment date & time ({{3}})">
+            <Input value={testTime} onChange={(e) => setTestTime(e.target.value)} />
+          </Field>
+
+          {testResult && (
+            <div
+              className={`text-xs p-3 rounded-lg border ${
+                testResult.tone === 'ok'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-coral/10 text-coral border-coral/20'
+              }`}
+            >
+              {testResult.message}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" type="button" onClick={() => setTestOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={testSending || !testPhone.trim()}>
+              {testSending ? 'Sending...' : 'Send test now'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={statusOpen} onClose={() => setStatusOpen(false)} title="Meta WhatsApp Templates Status">
+        <div className="space-y-4">
+          {checkingStatus ? (
+            <div className="text-sm text-ink/60 py-4 text-center">Contacting Meta Graph API...</div>
+          ) : !metaStatus ? (
+            <div className="text-sm text-ink/60">No data available.</div>
+          ) : !metaStatus.success ? (
+            <div className="rounded-xl border border-coral/30 bg-coral/10 p-3 text-xs text-coral">
+              <strong>Error checking Meta templates:</strong> {metaStatus.error || 'Failed to fetch templates from Meta.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-xs text-ink/70 flex justify-between border-b border-line pb-2">
+                <span>Account Phone: <strong>{metaStatus.phone || 'Connected'}</strong></span>
+                <span>WABA ID: <strong>{metaStatus.wabaId || '—'}</strong></span>
+              </div>
+              <div className="text-xs font-semibold text-ink">Required Hospital Templates:</div>
+              <div className="space-y-2">
+                {(metaStatus.expectedTemplates || []).map((t: any) => {
+                  const isApproved = t.variants?.some((v: any) => v.status === 'APPROVED' || v.status === 'ACTIVE');
+                  const isPending = t.variants?.some((v: any) => v.status === 'PENDING' || v.status === 'IN_REVIEW');
+                  const isRejected = t.variants?.some((v: any) => v.status === 'REJECTED');
+                  return (
+                    <div key={t.key} className="flex items-center justify-between p-2.5 rounded-lg border border-line bg-canvas">
+                      <div>
+                        <div className="font-mono text-xs font-medium text-ink">{t.expectedName}</div>
+                        <div className="text-[10px] text-ink/50 capitalize">
+                          {t.key === 'reminder' ? 'Appointment Reminder (24h)' : t.key === 'report' ? 'Diagnostic Report (PDF)' : 'Certificate (PDF)'}
+                          {t.variants?.length ? ` • Lang: ${t.variants.map((v: any) => v.language).join(', ')}` : ''}
+                        </div>
+                      </div>
+                      <div>
+                        {isApproved ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                            Approved ✓
+                          </span>
+                        ) : isPending ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                            In Review / Pending ⏳
+                          </span>
+                        ) : isRejected ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800">
+                            Rejected ✗
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700">
+                            Not Found in WABA
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {metaStatus.templates?.length > 0 && (
+                <div className="pt-2 text-[11px] text-ink/60 border-t border-line mt-3">
+                  <div className="font-semibold text-ink/70 mb-1">Templates active in WABA {metaStatus.wabaId} ({metaStatus.allTemplatesCount} total):</div>
+                  <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                    {metaStatus.templates.map((tpl: any) => (
+                      <span key={tpl.name} className="px-1.5 py-0.5 rounded bg-line/60 font-mono text-[10px] text-ink">
+                        {tpl.name} ({tpl.language}: {tpl.status})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={checkMetaStatus} disabled={checkingStatus}>
+              Refresh
+            </Button>
+            <Button size="sm" onClick={() => setStatusOpen(false)}>
+              Close
+            </Button>
           </div>
         </div>
       </Modal>

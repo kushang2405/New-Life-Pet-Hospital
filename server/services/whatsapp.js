@@ -22,11 +22,11 @@ function normalizePhone(raw) {
   return digits;
 }
 
-async function graphRequest(path, init) {
+async function graphRequest(path, init = {}) {
   const { token } = readConfig();
   const res = await fetch(`${GRAPH_URL}${path}`, {
     ...init,
-    headers: { Authorization: `Bearer ${token}`, ...(init.headers || {}) },
+    headers: { Authorization: `Bearer ${token}`, ...(init?.headers || {}) },
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -47,31 +47,161 @@ function sendMessage(payload) {
   });
 }
 
-async function sendPdfDocument(to, pdfBuffer, filename, caption) {
+async function findTemplateInWaba(templateName) {
+  try {
+    const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    const res = await graphRequest(`/${wabaId}/message_templates?limit=100&fields=name,status,language,id`);
+    const matches = (res.data || []).filter((t) => t.name === templateName);
+    return {
+      wabaId,
+      matches,
+      all: (res.data || []).map((t) => `${t.name} (${t.language}: ${t.status})`),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function sendTemplateMessageWithFallback(payloadBuilder, templateName = 'template') {
+  const configuredLang = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
+  const candidates = [...new Set([configuredLang, 'en', 'en_US', 'en_GB', 'en_IN'])].filter(Boolean);
+
+  let lastErr;
+  for (const lang of candidates) {
+    try {
+      return await sendMessage(payloadBuilder(lang));
+    } catch (err) {
+      lastErr = err;
+      if (err.code === 132000 || err.code === 132001 || /language|translation|template/i.test(err.message)) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // If candidate languages failed, inspect the actual WABA to diagnose or auto-recover
+  if (lastErr && (lastErr.code === 132000 || lastErr.code === 132001)) {
+    const wabaInfo = await findTemplateInWaba(templateName);
+    if (wabaInfo) {
+      if (wabaInfo.matches.length > 0) {
+        for (const m of wabaInfo.matches) {
+          if (m.status === 'APPROVED' || m.status === 'ACTIVE') {
+            try {
+              return await sendMessage(payloadBuilder(m.language));
+            } catch (retryErr) {
+              lastErr = retryErr;
+            }
+          } else {
+            const statusErr = new Error(
+              `Template '${templateName}' exists in your WhatsApp Business Account (${wabaInfo.wabaId}), ` +
+              `but its current status is '${m.status}'. Meta Cloud API requires 'APPROVED' status before messages can be sent.`
+            );
+            statusErr.code = 132001;
+            statusErr.status = 400;
+            throw statusErr;
+          }
+        }
+      } else {
+        const notFoundErr = new Error(
+          `Template '${templateName}' was NOT found in WhatsApp Business Account (${wabaInfo.wabaId}). ` +
+          `Active templates in this WABA: [${wabaInfo.all.join(', ') || 'None'}]. ` +
+          `Please make sure the template was created under WABA ID ${wabaInfo.wabaId} in Meta WhatsApp Manager.`
+        );
+        notFoundErr.code = 132001;
+        notFoundErr.status = 400;
+        throw notFoundErr;
+      }
+    }
+
+    const enriched = new Error(
+      `Meta WhatsApp API (#132001): Template '${templateName}' was not found in language (${candidates.join(', ')}). ` +
+      `Ensure the template is Submitted and has status 'APPROVED' in Meta WhatsApp Manager under this account, and check the language matches.`
+    );
+    enriched.code = lastErr.code;
+    enriched.status = 400;
+    throw enriched;
+  }
+  throw lastErr;
+}
+
+async function uploadPdfMedia(pdfBuffer, filename) {
   const { phoneNumberId } = readConfig();
   const form = new FormData();
   form.append('messaging_product', 'whatsapp');
-  form.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), filename);
+  form.append('file', new Blob([pdfBuffer], { type: 'application/pdf' }), filename || 'document.pdf');
   const upload = await graphRequest(`/${phoneNumberId}/media`, { method: 'POST', body: form });
-  return sendMessage({ to, type: 'document', document: { id: upload.id, filename, caption } });
+  if (!upload?.id) {
+    throw Object.assign(new Error('Failed to upload PDF document to WhatsApp.'), { status: 502 });
+  }
+  return upload.id;
 }
 
-async function sendAppointmentReminder(to, parameters) {
-  const response = await sendMessage({
+async function sendPdfDocument(to, pdfBuffer, filename, caption) {
+  const mediaId = await uploadPdfMedia(pdfBuffer, filename);
+  return sendMessage({ to, type: 'document', document: { id: mediaId, filename, caption } });
+}
+
+async function sendDocumentTemplate(to, { templateName, pdfBuffer, filename, bodyParameters }) {
+  const name = templateName || 'pet_report';
+  const mediaId = await uploadPdfMedia(pdfBuffer, filename);
+
+  const payloadBuilder = (lang) => ({
     to,
     type: 'template',
     recipient_type: 'individual',
     template: {
-      name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h',
-      language: { code: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US' },
+      name: name,
+      language: { code: lang },
       components: [
         {
+          type: 'header',
+          parameters: [
+            {
+              type: 'document',
+              document: {
+                id: mediaId,
+                filename: filename || 'document.pdf',
+              },
+            },
+          ],
+        },
+        {
           type: 'body',
-          parameters: parameters.map((text) => ({ type: 'text', text: String(text) })),
+          parameters: (bodyParameters || []).map((text) => ({ type: 'text', text: String(text || '—') })),
         },
       ],
     },
   });
+
+  const response = await sendTemplateMessageWithFallback(payloadBuilder, name);
+  if (!response.messages?.[0]?.id) {
+    throw Object.assign(new Error('WhatsApp accepted the request without returning a message ID.'), {
+      status: 502,
+      code: 'WHATSAPP_MESSAGE_ID_MISSING',
+    });
+  }
+  return response;
+}
+
+async function sendAppointmentReminder(to, parameters) {
+  const templateName = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h';
+  const payloadBuilder = (lang) => ({
+    to,
+    type: 'template',
+    recipient_type: 'individual',
+    template: {
+      name: templateName,
+      language: { code: lang },
+      components: [
+        {
+          type: 'body',
+          parameters: parameters.map((text) => ({ type: 'text', text: String(text || '—') })),
+        },
+      ],
+    },
+  });
+
+  const response = await sendTemplateMessageWithFallback(payloadBuilder, templateName);
   if (!response.messages?.[0]?.id) {
     throw Object.assign(new Error('WhatsApp accepted the request without returning a message ID, so delivery could not be confirmed.'), {
       status: 502,
@@ -79,6 +209,59 @@ async function sendAppointmentReminder(to, parameters) {
     });
   }
   return response;
+}
+
+async function checkTemplatesStatus() {
+  const { phoneNumberId } = readConfig();
+  const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  let phoneData = { display_phone_number: '+91 84888 20880', verified_name: 'New Life Pet Hospital' };
+  try {
+    const p = await graphRequest(`/${phoneNumberId}?fields=id,display_phone_number,verified_name`);
+    if (p.id) phoneData = p;
+  } catch {}
+
+  let templateList = [];
+  try {
+    const res = await graphRequest(`/${wabaId}/message_templates?limit=100&fields=name,status,language,category`);
+    templateList = res.data || [];
+  } catch (err) {
+    return {
+      success: false,
+      wabaId,
+      phone: phoneData.display_phone_number,
+      error: `Could not fetch templates from WABA ${wabaId}: ${err.message}`,
+    };
+  }
+
+  const expected = [
+    { key: 'reminder', name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h' },
+    { key: 'report', name: process.env.WHATSAPP_REPORT_TEMPLATE_NAME || 'pet_report' },
+    { key: 'certificate', name: process.env.WHATSAPP_CERTIFICATE_TEMPLATE_NAME || 'pet_certificate' },
+  ];
+
+  const results = expected.map((exp) => {
+    const matches = templateList.filter((t) => t.name === exp.name);
+    return {
+      key: exp.key,
+      expectedName: exp.name,
+      found: matches.length > 0,
+      variants: matches.map((m) => ({
+        status: m.status,
+        language: m.language,
+        category: m.category,
+      })),
+    };
+  });
+
+  return {
+    success: true,
+    wabaId,
+    phone: phoneData.display_phone_number,
+    verifiedName: phoneData.verified_name,
+    expectedTemplates: results,
+    allTemplatesCount: templateList.length,
+    templates: templateList.map((t) => ({ name: t.name, status: t.status, language: t.language })),
+  };
 }
 
 function verifyWebhookSignature(rawBody, signature) {
@@ -89,4 +272,11 @@ function verifyWebhookSignature(rawBody, signature) {
   return received.length === expected.length && crypto.timingSafeEqual(received, expected);
 }
 
-module.exports = { normalizePhone, sendPdfDocument, sendAppointmentReminder, verifyWebhookSignature };
+module.exports = {
+  normalizePhone,
+  sendPdfDocument,
+  sendDocumentTemplate,
+  sendAppointmentReminder,
+  checkTemplatesStatus,
+  verifyWebhookSignature,
+};

@@ -8,14 +8,29 @@ const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const PENDING_STATUSES = ['Scheduled', 'Rescheduled'];
 
 function localDateKey(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  try {
+    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  } catch {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
 }
 
 function appointmentStart(appt) {
-  return new Date(`${appt.date}T${appt.time || '00:00'}:00`);
+  if (!appt?.date) return new Date(NaN);
+  let timeStr = (appt.time || '09:00').trim();
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const mins = match[2];
+    const ampm = match[3]?.toUpperCase();
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    timeStr = `${String(hours).padStart(2, '0')}:${mins}`;
+  }
+  return new Date(`${appt.date}T${timeStr}:00+05:30`);
 }
 
 async function sendDueReminders(now = new Date()) {
@@ -30,7 +45,7 @@ async function sendDueReminders(now = new Date()) {
 
   const due = candidates.filter((appt) => {
     const start = appointmentStart(appt).getTime();
-    return start > now.getTime() && start <= windowEnd.getTime();
+    return !isNaN(start) && start > now.getTime() && start <= windowEnd.getTime();
   });
 
   let sent = 0;
@@ -43,8 +58,22 @@ async function sendDueReminders(now = new Date()) {
         errors.push(`${owner?.name || 'An owner'} has no phone number`);
         continue;
       }
-      const message = await sendAppointmentReminder(to, [owner.name, pet?.name || 'your pet', `${appt.date} ${appt.time}`]);
-      await Appointment.updateOne({ _id: appt._id }, { $set: { reminderSentAt: new Date(), whatsappMessageId: message.messages?.[0]?.id || '', whatsappStatus: 'accepted' } });
+      const timeLabel = appt.time ? `${appt.date} at ${appt.time}` : appt.date;
+      const message = await sendAppointmentReminder(to, [
+        owner?.name || 'Pet Parent',
+        pet?.name || 'your pet',
+        timeLabel,
+      ]);
+      await Appointment.updateOne(
+        { _id: appt._id },
+        {
+          $set: {
+            reminderSentAt: new Date(),
+            whatsappMessageId: message.messages?.[0]?.id || '',
+            whatsappStatus: 'accepted',
+          },
+        },
+      );
       sent += 1;
     } catch (err) {
       console.error(`[reminders] Failed for appointment ${appt._id}:`, err.message);

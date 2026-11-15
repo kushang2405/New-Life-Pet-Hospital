@@ -5,7 +5,14 @@ const Certificate = require('../models/Certificate');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
 const Appointment = require('../models/Appointment');
-const { normalizePhone, sendPdfDocument, verifyWebhookSignature } = require('../services/whatsapp');
+const {
+  normalizePhone,
+  sendPdfDocument,
+  sendDocumentTemplate,
+  sendAppointmentReminder,
+  checkTemplatesStatus,
+  verifyWebhookSignature,
+} = require('../services/whatsapp');
 const { sendDueReminders } = require('../services/appointmentReminders');
 const { authRequired } = require('../middleware/authMiddleware');
 
@@ -95,7 +102,8 @@ function safeFileName(name) {
 router.post(
   '/send-document',
   asyncHandler(async (req, res) => {
-    const source = SOURCES[req.body?.kind];
+    const kind = req.body?.kind;
+    const source = SOURCES[kind];
     if (!source) return res.status(400).json({ error: 'BAD_REQUEST', message: 'Unknown document type' });
 
     const doc = await source.model.findById(req.body.id).lean();
@@ -103,26 +111,92 @@ router.post(
     if (!doc.pdfData) return res.status(400).json({ error: 'NO_PDF', message: 'This document has no PDF saved.' });
 
     const owner = await Owner.findById(doc.ownerId).lean();
-    const to = normalizePhone(owner?.phone);
-    if (!to) return res.status(400).json({ error: 'NO_PHONE', message: 'The owner has no phone number on file.' });
+    const phone = owner?.phone || doc.ownerSnapshot?.phone || doc.ownerPhone;
+    const to = normalizePhone(phone);
+    if (!to) return res.status(400).json({ error: 'NO_PHONE', message: 'The owner has no valid phone number on file.' });
 
     const petName = source.petNameOf(doc) || 'Pet';
-    const type = source.typeOf(doc);
-    const filename = `${safeFileName(petName)}-${type}.pdf`;
+    const type = source.typeOf(doc) || 'Document';
+    const ownerName = owner?.name || doc.ownerSnapshot?.name || doc.ownerName || 'Pet Parent';
+    const filename = `${safeFileName(petName)}-${safeFileName(type)}.pdf`;
     const pdfBuffer = Buffer.from(doc.pdfData.split(',').pop(), 'base64');
 
+    let templateName;
+    let bodyParameters;
+
+    if (kind === 'reports') {
+      templateName = process.env.WHATSAPP_REPORT_TEMPLATE_NAME || 'pet_report';
+      bodyParameters = [ownerName, type, petName];
+    } else {
+      templateName = process.env.WHATSAPP_CERTIFICATE_TEMPLATE_NAME || 'pet_certificate';
+      bodyParameters = [ownerName, type, petName];
+    }
+
     try {
-      await sendPdfDocument(to, pdfBuffer, filename, `${type} ${source.noun} for ${petName}`);
+      const response = await sendDocumentTemplate(to, {
+        templateName,
+        pdfBuffer,
+        filename,
+        bodyParameters,
+      });
+      res.json({ success: true, filename, messageId: response.messages?.[0]?.id });
     } catch (err) {
-      if (err.code === WINDOW_CLOSED_CODE) {
-        return res.status(409).json({
-          error: 'WINDOW_CLOSED',
-          message: 'WhatsApp only allows sending a file to an owner who has messaged the clinic in the last 24 hours.',
+      if (err.code === 132000 || err.code === 132001) {
+        return res.status(400).json({
+          error: 'TEMPLATE_NOT_APPROVED',
+          message: err.message || `The WhatsApp template '${templateName}' does not exist or is not approved yet in Meta WhatsApp Manager.`,
         });
       }
       throw err;
     }
-    res.json({ success: true, filename });
+  }),
+);
+
+router.get(
+  '/templates/status',
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const result = await checkTemplatesStatus();
+    res.json(result);
+  }),
+);
+
+router.post(
+  '/reminders/test',
+  authRequired,
+  asyncHandler(async (req, res) => {
+    const to = normalizePhone(req.body?.phone);
+    if (!to) return res.status(400).json({ error: 'NO_PHONE', message: 'Provide a valid phone number to test.' });
+
+    const ownerName = req.body?.ownerName || 'Dr. Arshi Vala';
+    const petName = req.body?.petName || 'Buddy';
+    const dateTime = req.body?.dateTime || 'tomorrow at 10:30 AM';
+
+    try {
+      const response = await sendAppointmentReminder(to, [ownerName, petName, dateTime]);
+      res.json({ success: true, messageId: response.messages?.[0]?.id, to });
+    } catch (err) {
+      if (err.code === 132000 || err.code === 132001) {
+        return res.status(400).json({
+          error: 'TEMPLATE_NOT_APPROVED',
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+  }),
+);
+
+router.all(
+  '/reminders/cron',
+  asyncHandler(async (req, res) => {
+    const secret = req.query?.secret || req.headers['x-cron-secret'] || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+    const validSecret = process.env.CRON_SECRET || 'petcare_cron_secret_2026_secure';
+    if (secret !== validSecret && !req.user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or missing cron secret.' });
+    }
+    const result = await sendDueReminders();
+    res.json({ success: true, ...result });
   }),
 );
 
