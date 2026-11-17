@@ -34,7 +34,9 @@ export function isAtHospital(latitude: number, longitude: number): boolean {
   return distanceMeters(latitude, longitude, HOSPITAL_LOCATION.latitude, HOSPITAL_LOCATION.longitude) <= HOSPITAL_LOCATION.radiusMeters;
 }
 
-export function punchAttendance(type: 'in' | 'out', latitude: number, longitude: number): Promise<Staff> {
+export type PunchType = 'in' | 'out' | 'break_start' | 'break_end';
+
+export function punchAttendance(type: PunchType, latitude: number, longitude: number): Promise<Staff> {
   return authFetch('/attendance/punch', {
     method: 'POST',
     body: JSON.stringify({ type, date: localDate(), time: localTime(), latitude, longitude }),

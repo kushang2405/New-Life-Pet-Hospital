@@ -23,14 +23,14 @@ const minutesOf = (time) => {
 
 const punch = asyncHandler(async (req, res) => {
   const { type, date, time, latitude, longitude } = req.body;
-  if (!['in', 'out'].includes(type) || !DATE_RE.test(date || '') || !TIME_RE.test(time || '')) {
+  if (!['in', 'out', 'break_start', 'break_end'].includes(type) || !DATE_RE.test(date || '') || !TIME_RE.test(time || '')) {
     return res.status(400).json({ error: 'INVALID_PUNCH', message: 'Invalid punch request' });
   }
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return res.status(400).json({ error: 'LOCATION_REQUIRED', message: 'Location is required to punch in or out' });
+    return res.status(400).json({ error: 'LOCATION_REQUIRED', message: 'Location is required for attendance' });
   }
   if (distanceMeters(latitude, longitude, HOSPITAL.latitude, HOSPITAL.longitude) > HOSPITAL.radiusMeters) {
-    return res.status(403).json({ error: 'NOT_AT_HOSPITAL', message: 'You need to arrive at the hospital to punch in or out.' });
+    return res.status(403).json({ error: 'NOT_AT_HOSPITAL', message: 'You need to arrive at the hospital to punch in, out, or record break.' });
   }
 
   const staff = await Staff.findById(req.user.sub);
@@ -39,6 +39,7 @@ const punch = asyncHandler(async (req, res) => {
   }
 
   const record = staff.attendance.find((a) => a.date === date);
+
   if (type === 'in') {
     if (record?.checkIn) {
       return res.status(409).json({ error: 'ALREADY_PUNCHED_IN', message: 'You have already punched in today.' });
@@ -46,18 +47,73 @@ const punch = asyncHandler(async (req, res) => {
     if (record) {
       record.checkIn = time;
       record.status = 'Present';
+      record.breakStart = '';
+      record.breakEnd = '';
+      record.breakMinutes = 0;
+      record.isOnBreak = false;
     } else {
-      staff.attendance.push({ date, checkIn: time, checkOut: '', status: 'Present', hoursWorked: 0, notes: '' });
+      staff.attendance.push({
+        date,
+        checkIn: time,
+        checkOut: '',
+        status: 'Present',
+        hoursWorked: 0,
+        breakStart: '',
+        breakEnd: '',
+        breakMinutes: 0,
+        isOnBreak: false,
+        notes: '',
+      });
     }
-  } else {
+  } else if (type === 'break_start') {
+    if (!record?.checkIn) {
+      return res.status(409).json({ error: 'NOT_PUNCHED_IN', message: 'You must punch in before starting a break.' });
+    }
+    if (record.checkOut) {
+      return res.status(409).json({ error: 'ALREADY_PUNCHED_OUT', message: 'You have already punched out for today.' });
+    }
+    if (record.breakEnd) {
+      return res.status(409).json({ error: 'BREAK_ALREADY_COMPLETED', message: 'You have already completed your break for today. It cannot be reopened.' });
+    }
+    if (record.isOnBreak || record.breakStart) {
+      return res.status(409).json({ error: 'ALREADY_ON_BREAK', message: 'You are already on break.' });
+    }
+    record.breakStart = time;
+    record.isOnBreak = true;
+  } else if (type === 'break_end') {
+    if (!record?.checkIn) {
+      return res.status(409).json({ error: 'NOT_PUNCHED_IN', message: 'You must punch in first.' });
+    }
+    if (record.checkOut) {
+      return res.status(409).json({ error: 'ALREADY_PUNCHED_OUT', message: 'You have already punched out for today.' });
+    }
+    if (!record.breakStart) {
+      return res.status(409).json({ error: 'BREAK_NOT_STARTED', message: 'You have not started a break.' });
+    }
+    if (record.breakEnd) {
+      return res.status(409).json({ error: 'BREAK_ALREADY_COMPLETED', message: 'Your break has already ended and cannot be reopened.' });
+    }
+    record.breakEnd = time;
+    record.isOnBreak = false;
+    record.breakMinutes = Math.max(0, minutesOf(time) - minutesOf(record.breakStart));
+  } else if (type === 'out') {
     if (!record?.checkIn) {
       return res.status(409).json({ error: 'NOT_PUNCHED_IN', message: 'You need to punch in before punching out.' });
     }
     if (record.checkOut) {
       return res.status(409).json({ error: 'ALREADY_PUNCHED_OUT', message: 'You have already punched out today.' });
     }
+    // If still on break, auto-conclude the break at check-out time
+    if (record.isOnBreak || (record.breakStart && !record.breakEnd)) {
+      record.breakEnd = time;
+      record.isOnBreak = false;
+      record.breakMinutes = Math.max(0, minutesOf(time) - minutesOf(record.breakStart));
+    }
     record.checkOut = time;
-    record.hoursWorked = Math.round((Math.max(0, minutesOf(time) - minutesOf(record.checkIn)) / 60) * 100) / 100;
+    const elapsed = Math.max(0, minutesOf(time) - minutesOf(record.checkIn));
+    const breakMins = record.breakMinutes || 0;
+    const worked = Math.max(0, elapsed - breakMins);
+    record.hoursWorked = Math.round((worked / 60) * 100) / 100;
   }
 
   await staff.save();

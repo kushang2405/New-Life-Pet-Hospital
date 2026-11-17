@@ -512,6 +512,10 @@ export type AttendanceRecord = {
   checkOut: string;
   status: 'Present' | 'Late' | 'Absent' | 'Half-day' | 'Remote' | 'On leave';
   hoursWorked: number;
+  breakStart?: string;
+  breakEnd?: string;
+  breakMinutes?: number;
+  isOnBreak?: boolean;
   notes: string;
 };
 

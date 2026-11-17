@@ -6,6 +6,10 @@ const AttendanceSchema = new mongoose.Schema({
   checkOut: { type: String, default: '' },
   status: { type: String, enum: ['Present', 'Late', 'Absent', 'Half-day', 'Remote', 'On leave'], default: 'Present' },
   hoursWorked: { type: Number, default: 0 },
+  breakStart: { type: String, default: '' },
+  breakEnd: { type: String, default: '' },
+  breakMinutes: { type: Number, default: 0 },
+  isOnBreak: { type: Boolean, default: false },
   notes: { type: String, default: '' },
 }, { _id: false });
 
