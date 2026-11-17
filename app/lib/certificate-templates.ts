@@ -1,3 +1,5 @@
+import { DEFAULT_REPORT_BANNER } from './report-default-banner';
+
 export const CERTIFICATE_TYPES = ['Microchip', 'Spaying', 'Castration', 'Health'] as const;
 
 export type CertificateType = (typeof CERTIFICATE_TYPES)[number];
@@ -47,7 +49,7 @@ export type CertificateContent = {
 };
 
 export const DEFAULT_LETTERHEAD: LetterheadSettings = {
-  logoDataUrl: '',
+  logoDataUrl: DEFAULT_REPORT_BANNER,
   clinicName: 'New Life Pet Hospital',
   address: 'Opp. Amisha hotel, Between Delhigate & Lal Darwaja, Una Pani Road, Near Railway Station, Surat, Gujarat',
   email: 'newlifepethospital@gmail.com',

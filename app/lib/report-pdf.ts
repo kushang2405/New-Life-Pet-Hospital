@@ -1,58 +1,152 @@
 import { jsPDF } from 'jspdf';
 import { applyCbcReferenceRanges, normalizeReferenceRange, normalizeResultValue, resultInRange } from './report-parser';
 import type { ReportAnalyte, ReportDraft, ReportType } from './report-types';
+import { DEFAULT_REPORT_BANNER } from './report-default-banner';
 
 const TEXT_COLOR: [number, number, number] = [25, 25, 25];
 const IN_RANGE_COLOR: [number, number, number] = [30, 80, 200];
 const OUT_OF_RANGE_COLOR: [number, number, number] = [200, 35, 35];
 const COLUMNS = [38, 190, 276, 350, 456, 554];
-const LOGO_TOP = 28;
-const LOGO_HEIGHT = 56;
-const LOGO_MAX_WIDTH = 220;
 
-function drawHeaderBand(doc: jsPDF, draft: ReportDraft): number {
-  if (!draft.logoDataUrl) return 40;
-  const format = draft.logoDataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
-  const { width, height } = doc.getImageProperties(draft.logoDataUrl);
-  const logoWidth = Math.min(LOGO_MAX_WIDTH, LOGO_HEIGHT * (width / height));
-  doc.addImage(draft.logoDataUrl, format, 38, LOGO_TOP, logoWidth, LOGO_HEIGHT);
-  return LOGO_TOP + LOGO_HEIGHT + 12;
+function formatSlashDate(dateStr?: string): string {
+  if (!dateStr) {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return dateStr;
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) return dateStr.replace(/-/g, '/');
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
 }
 
-function drawPatientHeader(doc: jsPDF, draft: ReportDraft, y: number): number {
-  const { owner, pet, patientDetails } = draft;
-  const top = y - 18;
-  doc.setDrawColor(145, 145, 145);
-  doc.setFillColor(248, 249, 251);
-  doc.roundedRect(38, top, 516, 126, 3, 3, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(...TEXT_COLOR);
-  doc.text('PATIENT / SAMPLE DETAILS', 48, top + 17);
-  doc.setDrawColor(205, 205, 205);
-  doc.line(48, top + 24, 544, top + 24);
-  const columns = [44, 218, 390];
-  const rows = [
-    [['Owner', owner.name], ['Age', patientDetails.ageGender || '—'], ['Sample type', patientDetails.sampleType || (draft.reportType === 'OTHER' ? (draft.otherTestType || 'Serum') : draft.reportType)]],
-    [['Phone', owner.phone || '—'], ['Date', patientDetails.date || new Date().toISOString().slice(0, 10)], ['Breed', pet.breed || '—']],
-    [['Species', pet.species || '—'], ['Weight', pet.weightKg ? `${pet.weightKg} kg` : '—']],
-    [['Address', owner.address || '—'], ['Birth date', pet.birthDate || '—'], ['Referred by', patientDetails.referredBy || '—']],
-    [['Patient', pet.name], ['UHID', patientDetails.uhid || '—'], ['Sample no', patientDetails.sampleNo || '—']],
+function drawHeaderBand(doc: jsPDF, draft: ReportDraft): number {
+  const logo = draft.logoDataUrl || DEFAULT_REPORT_BANNER;
+  if (!logo) return 30;
+  const format = logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+  try {
+    const { width, height } = doc.getImageProperties(logo);
+    const aspect = width / height;
+    const top = 18;
+    if (aspect >= 2.2) {
+      // Wide banner header covering across the page
+      const bannerWidth = 516;
+      const bannerHeight = Math.min(115, bannerWidth / aspect);
+      doc.addImage(logo, format, 38, top, bannerWidth, bannerHeight);
+      return top + bannerHeight + 14;
+    } else {
+      // Standard / compact logo
+      const logoHeight = 65;
+      const logoWidth = Math.min(220, logoHeight * aspect);
+      doc.addImage(logo, format, 38, top, logoWidth, logoHeight);
+      return top + logoHeight + 14;
+    }
+  } catch {
+    return 30;
+  }
+}
+
+function drawPatientHeader(doc: jsPDF, draft: ReportDraft, startY: number): number {
+  const { pet, patientDetails } = draft;
+  const top = startY;
+
+  // Format pet name with prefix (MR. / MISS) if not already present
+  const petNameRaw = (pet.name || 'PATIENT').trim();
+  const petUpper = petNameRaw.toUpperCase();
+  const isFemale = (pet.gender || '').toLowerCase().includes('female');
+  const prefix = isFemale ? 'MISS' : 'MR.';
+  const petFormatted =
+    petUpper.startsWith('MR.') || petUpper.startsWith('MS.') || petUpper.startsWith('MISS')
+      ? petUpper
+      : `${prefix} ${petUpper}`;
+
+  // Age / gender
+  const ageGenderVal =
+    patientDetails.ageGender ||
+    [pet.birthDate ? `${pet.birthDate}` : '', pet.gender || ''].filter(Boolean).join(' / ') ||
+    '—';
+
+  // Referred by
+  const refByVal = patientDetails.referredBy || 'Dr.ARSHI VALA M.V.Sc';
+
+  // Collected by (branch)
+  const collectedByVal =
+    patientDetails.sampleType && patientDetails.sampleType.toLowerCase().includes('branch')
+      ? patientDetails.sampleType
+      : 'Main Branch';
+
+  // Patient ID
+  const patientIdVal = patientDetails.sampleNo || patientDetails.uhid || (pet.id ? pet.id.slice(-8) : '202609033');
+
+  // Dates in DD/MM/YYYY format
+  const dateFormatted = formatSlashDate(patientDetails.date);
+
+  const leftCol = [
+    { label: 'Collected by', value: collectedByVal, isBold: false },
+    { label: "Patient's Name", value: petFormatted, isBold: true },
+    { label: 'Age / Gender', value: ageGenderVal, isBold: false },
+    { label: 'Ref. By', value: refByVal, isBold: false },
   ];
-  rows.forEach((row, rowIndex) => row.forEach(([label, value], columnIndex) => {
-    const x = columns[columnIndex];
-    const lineY = top + 43 + rowIndex * 16;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.text(`${label}:`, x, lineY);
+
+  const rightCol = [
+    { label: 'Patient ID', value: patientIdVal },
+    { label: 'Collection Date', value: dateFormatted },
+    { label: 'Received Date', value: dateFormatted },
+    { label: 'Reporting Date', value: dateFormatted },
+  ];
+
+  const leftLabelX = 44;
+  const leftColonX = 118;
+  const leftValueX = 126;
+
+  const rightLabelX = 355;
+  const rightColonX = 432;
+  const rightValueX = 442;
+
+  const rowHeight = 16;
+
+  for (let i = 0; i < 4; i++) {
+    const currentY = top + i * rowHeight;
+
+    // Left Column
+    const leftItem = leftCol[i];
     doc.setFont('helvetica', 'normal');
-    doc.text(String(value).slice(0, 24), x + 42, lineY);
-  }));
-  return top + 138;
+    doc.setFontSize(8.5);
+    doc.setTextColor(...TEXT_COLOR);
+    doc.text(leftItem.label, leftLabelX, currentY);
+    doc.text(':', leftColonX, currentY);
+
+    if (leftItem.isBold) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+    }
+    doc.text(leftItem.value, leftValueX, currentY);
+
+    // Right Column
+    const rightItem = rightCol[i];
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...TEXT_COLOR);
+    doc.text(rightItem.label, rightLabelX, currentY);
+    doc.text(':', rightColonX, currentY);
+    doc.text(rightItem.value, rightValueX, currentY);
+  }
+
+  // Pure white background, no border, returns top + height + margin
+  return top + 4 * rowHeight + 12;
 }
 
 function drawPageStart(doc: jsPDF, draft: ReportDraft): number {
-  return drawPatientHeader(doc, draft, drawHeaderBand(doc, draft) + 14) + 10;
+  const headerBottom = drawHeaderBand(doc, draft);
+  return drawPatientHeader(doc, draft, headerBottom) + 8;
 }
 
 function drawColumnHeader(doc: jsPDF, y: number, cbc: boolean): number {

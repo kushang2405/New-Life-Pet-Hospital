@@ -5,6 +5,7 @@ import { Download, FileImage, Loader2, Plus, Trash2, Upload, X } from 'lucide-re
 import { Button, DateInput, EmptyState, Field, Input, Select, Textarea } from './ui';
 import { authFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
+import { DEFAULT_REPORT_BANNER } from '../lib/report-default-banner';
 import { compressReportImage } from '../lib/report-images';
 import { applyCbcReferenceRanges, formatPetAge } from '../lib/report-parser';
 import { createReportPdf, openPdfBlobInNewTab, optimizeLogoForPdf } from '../lib/report-pdf';
@@ -103,8 +104,8 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   useEffect(() => {
     if (report?.logoData) return;
     fetchLetterhead()
-      .then((letterhead) => setLogoDataUrl(letterhead.logoDataUrl))
-      .catch(() => setError('Could not load the clinic logo from certificate settings.'));
+      .then((letterhead) => setLogoDataUrl(letterhead.logoDataUrl || DEFAULT_REPORT_BANNER))
+      .catch(() => setLogoDataUrl(DEFAULT_REPORT_BANNER));
   }, [report?.logoData]);
 
   useEffect(() => {
