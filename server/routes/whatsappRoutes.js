@@ -22,7 +22,7 @@ const router = express.Router();
 const SOURCES = {
   reports: {
     model: DiagnosticReport,
-    typeOf: (doc) => doc.reportType,
+    typeOf: (doc) => doc.otherTestType || doc.reportType,
     petNameOf: (doc) => doc.petSnapshot?.name,
     noun: 'report',
   },

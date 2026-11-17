@@ -84,6 +84,14 @@ const badgeTones: Record<string, string> = {
   Inactive: 'bg-ink/10 text-ink/50',
   'In progress': 'bg-coral/15 text-coral',
   'Checked-in boarding': 'bg-lilac text-plum',
+  BIO: 'bg-indigo-100 text-indigo-700',
+  CBC: 'bg-purple-100 text-purple-700',
+  OTHER: 'bg-teal-100 text-teal-700',
+  'CANINE FREE T4': 'bg-cyan-100 text-cyan-800',
+  'Canine Progesterone': 'bg-pink-100 text-pink-800',
+  'TROPONIN-I': 'bg-rose-100 text-rose-800',
+  'CANINE TSH': 'bg-teal-100 text-teal-800',
+  'CANINE TT4': 'bg-sky-100 text-sky-800',
 };
 
 export function Badge({ status }: { status: string }) {

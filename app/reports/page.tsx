@@ -108,7 +108,7 @@ export default function ReportsPage() {
   if (!db) return <Shell title="Diagnostic Reports"><div className="text-sm text-ink/50">Loading...</div></Shell>;
 
   return (
-    <Shell title="Diagnostic Reports" subtitle="BIO and CBC diagnostic reports" module="reports">
+    <Shell title="Diagnostic Reports" subtitle="BIO, CBC, and specialized diagnostic reports" module="reports">
       <Card className="p-5">
         <SectionTitle title="Generated reports" action={<Button onClick={openNew} icon={Plus}>Add report</Button>} />
         {loadError && <div className="mb-4 text-sm text-coral bg-coral/10 border border-coral/20 rounded-lg px-3 py-2">{loadError}</div>}
@@ -120,7 +120,11 @@ export default function ReportsPage() {
           filter={typeFilter}
           onFilter={(value) => { setTypeFilter(value); setPage(1); }}
           filterLabel="types"
-          filterOptions={[{ value: 'BIO', label: 'BIO' }, { value: 'CBC', label: 'CBC' }]}
+          filterOptions={[
+            { value: 'BIO', label: 'BIO' },
+            { value: 'CBC', label: 'CBC' },
+            { value: 'OTHER', label: 'Other' },
+          ]}
         />
         {/* Mobile Cards View (< md) */}
         <div className="block md:hidden border border-line rounded-xl divide-y divide-line overflow-hidden bg-white mb-4">
@@ -130,7 +134,7 @@ export default function ReportsPage() {
                 <div>
                   <div className="font-semibold text-ink text-base flex items-center gap-2">
                     {report.petSnapshot?.name || 'Pet'}
-                    <Badge status={report.reportType} />
+                    <Badge status={report.otherTestType || report.reportType} />
                   </div>
                   <div className="text-xs text-ink/60 mt-0.5">
                     Owner: <span className="font-medium text-ink/80">{report.ownerSnapshot?.name || '—'}</span>
@@ -160,7 +164,7 @@ export default function ReportsPage() {
               </div>
             </div>
           ))}
-          {!reports.length && !loadError && <EmptyState icon={FileText} title="No reports yet" hint="Use Add report to create your first BIO or CBC report." />}
+          {!reports.length && !loadError && <EmptyState icon={FileText} title="No reports yet" hint="Use Add report to create your first diagnostic report." />}
           {reports.length > 0 && !filtered.length && <div className="p-6 text-center text-sm text-ink/50">No reports match your search or filter.</div>}
         </div>
 
@@ -182,7 +186,7 @@ export default function ReportsPage() {
                 <td className="p-3 text-ink/70">{new Date(report.createdAt).toLocaleString()}</td>
                 <td className="p-3 font-medium text-ink">{report.petSnapshot?.name || '—'}</td>
                 <td className="p-3 text-ink/70">{report.ownerSnapshot?.name || '—'}</td>
-                <td className="p-3"><Badge status={report.reportType} /></td>
+                <td className="p-3"><Badge status={report.otherTestType || report.reportType} /></td>
                 <td className="p-3 text-ink/70">{report.analytes?.length ?? 0}</td>
                 <td className="p-3">
                   <div className="flex items-center justify-end gap-2">

@@ -10,7 +10,9 @@ const AnalyteSchema = new mongoose.Schema({
 }, { _id: false });
 
 const DiagnosticReportSchema = new mongoose.Schema({
-  reportType: { type: String, enum: ['BIO', 'CBC'], required: true },
+  reportType: { type: String, required: true },
+  otherTestType: { type: String, default: '' },
+  interpretation: { type: String, default: '' },
   title: { type: String, required: true },
   ownerId: { type: String, required: true, index: true },
   petId: { type: String, required: true, index: true },

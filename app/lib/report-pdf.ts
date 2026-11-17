@@ -33,7 +33,7 @@ function drawPatientHeader(doc: jsPDF, draft: ReportDraft, y: number): number {
   doc.line(48, top + 24, 544, top + 24);
   const columns = [44, 218, 390];
   const rows = [
-    [['Owner', owner.name], ['Age', patientDetails.ageGender || '—'], ['Sample type', patientDetails.sampleType || draft.reportType]],
+    [['Owner', owner.name], ['Age', patientDetails.ageGender || '—'], ['Sample type', patientDetails.sampleType || (draft.reportType === 'OTHER' ? (draft.otherTestType || 'Serum') : draft.reportType)]],
     [['Phone', owner.phone || '—'], ['Date', patientDetails.date || new Date().toISOString().slice(0, 10)], ['Breed', pet.breed || '—']],
     [['Species', pet.species || '—'], ['Weight', pet.weightKg ? `${pet.weightKg} kg` : '—']],
     [['Address', owner.address || '—'], ['Birth date', pet.birthDate || '—'], ['Referred by', patientDetails.referredBy || '—']],
@@ -211,12 +211,135 @@ export async function optimizeLogoForPdf(dataUrl?: string): Promise<string | und
   });
 }
 
+function drawOtherTable(
+  doc: jsPDF,
+  draft: ReportDraft,
+  rows: ReportAnalyte[],
+  startY: number,
+  interpretation?: string,
+): number {
+  let cursor = startY;
+
+  // 1. Table Header Bar (matching PDF screenshot: light blue/cyan fill with dark border)
+  doc.setFillColor(232, 244, 248);
+  doc.setDrawColor(20, 30, 45);
+  doc.rect(38, cursor - 13, 516, 20, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...TEXT_COLOR);
+
+  const colX = {
+    testName: 48,
+    observedValue: 245,
+    unit: 380,
+    referenceRange: 450,
+  };
+
+  doc.text('Test Name', colX.testName, cursor);
+  doc.text('Observed Value', colX.observedValue, cursor);
+  doc.text('Unit', colX.unit, cursor);
+  doc.text('Reference Range', colX.referenceRange, cursor);
+
+  cursor += 24;
+
+  // 2. Centered Underlined Test Title
+  const testTitle = (draft.otherTestType || rows[0]?.section || draft.title || 'TEST').toUpperCase();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...TEXT_COLOR);
+  const textWidth = doc.getTextWidth(testTitle);
+  const centerX = 296;
+  doc.text(testTitle, centerX, cursor, { align: 'center' });
+  doc.setDrawColor(25, 25, 25);
+  doc.setLineWidth(0.75);
+  doc.line(centerX - textWidth / 2 - 2, cursor + 2, centerX + textWidth / 2 + 2, cursor + 2);
+
+  cursor += 20;
+
+  // 3. Test Rows
+  rows.forEach((row) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...TEXT_COLOR);
+    doc.text(row.name, colX.testName, cursor);
+
+    // Observed value with colon: ": 2.3"
+    const valText = row.result ? `: ${row.result}` : ': —';
+    const normalized = normalizedRow(row);
+    drawResult(doc, valText, normalized.inRange, colX.observedValue, cursor);
+
+    doc.text(row.unit || '—', colX.unit, cursor);
+    doc.text(row.referenceRange || '—', colX.referenceRange, cursor);
+
+    cursor += 20;
+  });
+
+  cursor += 12;
+
+  // 4. Interpretation / Remarks below the table
+  const interpText = interpretation || draft.interpretation;
+  if (interpText) {
+    const lines = interpText.split('\n');
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        cursor += 8;
+        return;
+      }
+      if (
+        trimmed.startsWith('Interpretation') ||
+        trimmed.startsWith('Report remark') ||
+        trimmed.startsWith('***')
+      ) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...TEXT_COLOR);
+        doc.text(trimmed, 48, cursor);
+        cursor += 14;
+      } else {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(40, 40, 40);
+        const wrapped = doc.splitTextToSize(trimmed, 500) as string[];
+        doc.text(wrapped, 48, cursor);
+        cursor += wrapped.length * 11;
+      }
+    });
+  }
+
+  // 5. Divider Line & End of Report
+  cursor += 14;
+  if (cursor < 710) {
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.5);
+    doc.line(38, cursor, 554, cursor);
+    cursor += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(90, 90, 90);
+    doc.text('*** End of Report ***', centerX, cursor, { align: 'center' });
+  }
+
+  // 6. Draw SIGNATURE label at bottom right
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...TEXT_COLOR);
+  doc.text('SIGNATURE', 487, 740, { align: 'center' });
+
+  return cursor;
+}
+
 export function createReportPdf(draft: ReportDraft): Blob {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const y = drawPageStart(doc, draft);
   const analytes = draft.reportType === 'CBC' ? applyCbcReferenceRanges(draft.analytes) : draft.analytes;
-  if (draft.reportType === 'CBC') drawCbcTable(doc, draft, analytes, y);
-  else drawBioTable(doc, draft, draft.analytes, y);
+  if (draft.reportType === 'CBC') {
+    drawCbcTable(doc, draft, analytes, y);
+  } else if (draft.reportType === 'OTHER') {
+    drawOtherTable(doc, draft, draft.analytes, y, draft.interpretation);
+  } else {
+    drawBioTable(doc, draft, draft.analytes, y);
+  }
   doc.setDrawColor(150, 150, 150);
   doc.line(420, 762, 554, 762);
   doc.setTextColor(...TEXT_COLOR);
@@ -229,7 +352,7 @@ export function createReportPdf(draft: ReportDraft): Blob {
   doc.setFontSize(7.5);
   doc.setTextColor(60, 60, 60);
   doc.setFont('helvetica', 'bold');
-  doc.text(`** This is an Electronically Approved Report.   **Report Approvd on : ${approvedDate}`, 38, 805);
+  doc.text(`** This is an Electronically Approved Report.   **Report Approved on : ${approvedDate}`, 38, 805);
   return doc.output('blob');
 }
 
