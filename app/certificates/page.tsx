@@ -121,7 +121,55 @@ export default function CertificatesPage() {
           filterLabel="types"
           filterOptions={CERTIFICATE_TYPES.map((type) => ({ value: type, label: type }))}
         />
-        <div className="overflow-x-auto border border-line rounded-xl">
+        {/* Mobile Cards View (< md) */}
+        <div className="block md:hidden border border-line rounded-xl divide-y divide-line overflow-hidden bg-white mb-4">
+          {pageData.rows.map((certificate) => (
+            <div key={certificate.id} className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-ink text-base">
+                    {certificate.petName || 'Pet'}
+                  </div>
+                  <div className="text-xs font-medium text-plum mt-0.5">
+                    {certificate.certificateType}
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono text-ink/60 bg-canvas px-2 py-0.5 rounded border border-line shrink-0">
+                  {certificate.certificateDate}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-ink/70 bg-canvas/60 rounded-lg p-2.5">
+                <div>
+                  <span className="text-ink/40 block text-[10px] uppercase">Owner</span>
+                  <span className="font-medium text-ink">{certificate.ownerName}</span>
+                </div>
+                <div>
+                  <span className="text-ink/40 block text-[10px] uppercase">Cert No</span>
+                  <span className="font-mono text-[11px] text-ink">{certificate.certificateNo}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-ink/40">{certificate.includeHeader ? 'With header' : 'Without header'}</span>
+                <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => sendOnWhatsApp(certificate)} disabled={sendingId === certificate.id} className="text-emerald-700 hover:bg-emerald-50 text-xs">
+                    <MessageCircle className="w-3.5 h-3.5 mr-1 text-emerald-600" /> WhatsApp
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => openCertificate(certificate.id)} disabled={openingId === certificate.id} className="text-plum hover:bg-lilac text-xs">
+                    <Eye className="w-3.5 h-3.5 mr-1 text-plum" /> View
+                  </Button>
+                  <button onClick={() => { setDeleteError(''); setDeleting(certificate); }} title="Delete certificate" aria-label="Delete certificate" className={`${actionButton} text-coral hover:bg-coral/10`}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!certificates.length && !loadError && <EmptyState icon={FileBadge} title="No certificates yet" hint="Use Add certificate to issue your first certificate." />}
+          {certificates.length > 0 && !filtered.length && <div className="p-6 text-center text-sm text-ink/50">No certificates match your search or filter.</div>}
+        </div>
+
+        {/* Desktop Table View (>= md) */}
+        <div className="hidden md:block overflow-x-auto border border-line rounded-xl">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-canvas text-ink/55 text-xs">
               <tr>
@@ -137,7 +185,7 @@ export default function CertificatesPage() {
             <tbody>
               {pageData.rows.map((certificate) => <tr key={certificate.id} className="border-t border-line hover:bg-canvas/60 transition-colors">
                 <td className="p-3 text-ink/70">{certificate.certificateDate}</td>
-                <td className="p-3 text-ink/70">{certificate.certificateNo}</td>
+                <td className="p-3 text-ink/70 font-mono text-xs">{certificate.certificateNo}</td>
                 <td className="p-3 font-medium text-ink">{certificate.certificateType}</td>
                 <td className="p-3 text-ink/70">{certificate.petName}</td>
                 <td className="p-3 text-ink/70">{certificate.ownerName}</td>

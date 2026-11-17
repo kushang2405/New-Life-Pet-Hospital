@@ -1,6 +1,7 @@
 const Appointment = require('../models/Appointment');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
+const Config = require('../models/Config');
 const { normalizePhone, sendAppointmentReminder } = require('./whatsapp');
 
 const LEAD_MS = 24 * 60 * 60 * 1000;
@@ -33,7 +34,25 @@ function appointmentStart(appt) {
   return new Date(`${appt.date}T${timeStr}:00+05:30`);
 }
 
-async function sendDueReminders(now = new Date()) {
+function formatTimeLabel(appt) {
+  let timeStr = (appt?.time || '').trim();
+  if (!timeStr) return 'tomorrow';
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const mins = match[2];
+    const ampm = match[3] ? match[3].toUpperCase() : (hours >= 12 ? 'PM' : 'AM');
+    if (!match[3]) {
+      if (hours > 12) hours -= 12;
+      else if (hours === 0) hours = 12;
+    }
+    return `at ${hours}:${mins} ${ampm}`;
+  }
+  return `at ${timeStr}`;
+}
+
+async function sendDueReminders(source = 'manual', now = new Date()) {
+  const startTime = Date.now();
   const windowEnd = new Date(now.getTime() + LEAD_MS);
   const dateKeys = [0, 1, 2].map((offset) => localDateKey(new Date(now.getTime() + offset * 86400000)));
 
@@ -52,13 +71,39 @@ async function sendDueReminders(now = new Date()) {
   const errors = [];
   for (const appt of due) {
     try {
+      // Atomic Lock: Atomically claim the appointment if reminderSentAt is still null.
+      // This strictly prevents duplicate sends even if the VPS cronjob and a manual trigger overlap.
+      const claimed = await Appointment.findOneAndUpdate(
+        { _id: appt._id, reminderSentAt: null },
+        {
+          $set: {
+            reminderSentAt: new Date(),
+            whatsappStatus: 'sending',
+          },
+        },
+        { returnDocument: 'after' },
+      );
+      if (!claimed) {
+        // Another process already claimed or sent this reminder
+        continue;
+      }
+
       const [owner, pet] = await Promise.all([Owner.findById(appt.ownerId).lean(), Pet.findById(appt.petId).lean()]);
       const to = normalizePhone(owner?.phone);
       if (!to) {
+        await Appointment.updateOne(
+          { _id: appt._id },
+          {
+            $set: {
+              whatsappStatus: 'failed',
+              whatsappError: 'No phone number on file for owner',
+            },
+          },
+        );
         errors.push(`${owner?.name || 'An owner'} has no phone number`);
         continue;
       }
-      const timeLabel = appt.time ? `${appt.date} at ${appt.time}` : appt.date;
+      const timeLabel = formatTimeLabel(appt);
       const message = await sendAppointmentReminder(to, [
         owner?.name || 'Pet Parent',
         pet?.name || 'your pet',
@@ -68,19 +113,48 @@ async function sendDueReminders(now = new Date()) {
         { _id: appt._id },
         {
           $set: {
-            reminderSentAt: new Date(),
             whatsappMessageId: message.messages?.[0]?.id || '',
             whatsappStatus: 'accepted',
+            whatsappError: '',
           },
         },
       );
       sent += 1;
     } catch (err) {
       console.error(`[reminders] Failed for appointment ${appt._id}:`, err.message);
+      await Appointment.updateOne(
+        { _id: appt._id },
+        {
+          $set: {
+            whatsappStatus: 'failed',
+            whatsappError: err.message || 'Failed to send WhatsApp message',
+          },
+        },
+      );
       errors.push(err.message);
     }
   }
-  return { due: due.length, sent, errors };
+
+  const runInfo = {
+    lastRunAt: new Date(),
+    source, // 'interval' | 'vps-cron' | 'manual'
+    dueCount: due.length,
+    sentCount: sent,
+    errorsCount: errors.length,
+    durationMs: Date.now() - startTime,
+  };
+
+  try {
+    await Config.findOneAndUpdate(
+      { key: 'reminder_cron_last_run' },
+      { $set: { data: runInfo } },
+      { upsert: true, returnDocument: 'after' },
+    );
+  } catch (logErr) {
+    console.error('[reminders] Could not save runInfo in Config:', logErr.message);
+  }
+
+  return { due: due.length, sent, errors, lastRun: runInfo };
 }
 
 let running = false;
@@ -90,7 +164,7 @@ function startReminderJob() {
     if (running) return;
     running = true;
     try {
-      await sendDueReminders();
+      await sendDueReminders('interval');
     } catch (err) {
       console.error('[reminders] Pass failed:', err.message);
     } finally {

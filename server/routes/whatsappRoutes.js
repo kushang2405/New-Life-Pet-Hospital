@@ -5,6 +5,7 @@ const Certificate = require('../models/Certificate');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
 const Appointment = require('../models/Appointment');
+const Config = require('../models/Config');
 const {
   normalizePhone,
   sendPdfDocument,
@@ -65,11 +66,12 @@ router.get(
   '/reminder-stats',
   asyncHandler(async (req, res) => {
     const now = new Date();
-    const [totalSent, sentLast24h, pending, recent] = await Promise.all([
+    const [totalSent, sentLast24h, pending, recent, lastRunDoc] = await Promise.all([
       Appointment.countDocuments({ reminderSentAt: { $ne: null } }),
       Appointment.countDocuments({ reminderSentAt: { $gte: new Date(now.getTime() - DAY_MS) } }),
       Appointment.countDocuments({ reminderSentAt: null, status: { $in: ['Scheduled', 'Rescheduled'] }, date: { $gte: now.toISOString().slice(0, 10) } }),
       Appointment.find({ reminderSentAt: { $ne: null } }).sort({ reminderSentAt: -1 }).limit(20).lean(),
+      Config.findOne({ key: 'reminder_cron_last_run' }).lean(),
     ]);
     const ownerIds = [...new Set(recent.map((a) => a.ownerId))];
     const petIds = [...new Set(recent.map((a) => a.petId))];
@@ -80,6 +82,7 @@ router.get(
       totalSent,
       sentLast24h,
       pending,
+      lastRun: lastRunDoc?.data || null,
       recent: recent.map((a) => ({
         id: String(a._id),
         ownerName: ownerName.get(a.ownerId) || '',
@@ -195,7 +198,7 @@ router.all(
     if (secret !== validSecret && !req.user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or missing cron secret.' });
     }
-    const result = await sendDueReminders();
+    const result = await sendDueReminders('vps-cron');
     res.json({ success: true, ...result });
   }),
 );
@@ -204,7 +207,7 @@ router.post(
   '/reminders/run',
   authRequired,
   asyncHandler(async (req, res) => {
-    const result = await sendDueReminders();
+    const result = await sendDueReminders('manual');
     res.json({ success: true, ...result });
   }),
 );

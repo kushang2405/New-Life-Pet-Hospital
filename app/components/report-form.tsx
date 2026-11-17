@@ -38,6 +38,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   const [saveBusy, setSaveBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const selectedOwner = owners.find((owner) => owner.id === ownerId);
   const ownerPets = useMemo(() => pets.filter((pet) => pet.ownerId === ownerId), [pets, ownerId]);
@@ -144,15 +145,18 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   };
 
   const generateAndSave = async () => {
-    if (!selectedOwner || !selectedPet) {
-      setError('Select both an owner and a pet before generating the report.');
-      return;
-    }
+    const errs: Record<string, string> = {};
+    if (!selectedOwner) errs.owner = 'Please select an owner';
+    if (!selectedPet) errs.pet = 'Please select a pet';
     const analytes = rows.filter((row) => row.name.trim() || row.result.trim());
-    if (!analytes.length) {
-      setError('Add at least one result row before generating the report.');
+    if (!analytes.length) errs.analytes = 'Add at least one result row or upload photos to generate the report';
+
+    if (Object.keys(errs).length > 0 || !selectedOwner || !selectedPet) {
+      setFieldErrors(errs);
+      setError('Please fill in the compulsory fields below.');
       return;
     }
+    setFieldErrors({});
     setSaveBusy(true);
     setError('');
     try {
@@ -209,14 +213,28 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
             <option value="CBC">CBC</option>
           </Select>
         </Field>
-        <Field label="Owner">
-          <Select value={ownerId} onChange={(event) => { setOwnerId(event.target.value); setPetId(''); }}>
+        <Field label="Owner" required error={fieldErrors.owner}>
+          <Select
+            value={ownerId}
+            onChange={(event) => {
+              setOwnerId(event.target.value);
+              setPetId('');
+              if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
+            }}
+          >
             <option value="">Select owner</option>
             {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
           </Select>
         </Field>
-        <Field label="Pet">
-          <Select value={petId} onChange={(event) => setPetId(event.target.value)} disabled={!ownerId}>
+        <Field label="Pet" required error={fieldErrors.pet}>
+          <Select
+            value={petId}
+            onChange={(event) => {
+              setPetId(event.target.value);
+              if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
+            }}
+            disabled={!ownerId}
+          >
             <option value="">Select pet</option>
             {ownerPets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
           </Select>
@@ -233,7 +251,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       )}
 
       <div className="grid gap-3 mb-5">
-        <Field label="Report photos" className="rounded-xl border border-line bg-canvas/60  p-3">
+        <Field label="Report photos" error={fieldErrors.analytes} className="rounded-xl border border-line bg-canvas/60  p-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2 min-w-0">
               <label className="flex items-center justify-center gap-2 min-h-11 px-4 rounded-lg border border-dashed border-plum/35 bg-lilac/30 text-sm text-plum cursor-pointer hover:bg-lilac transition-colors">

@@ -53,6 +53,31 @@ function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function startOfWeek(d: Date) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); return r; }
 
+function getLocalToday(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getLocalCurrentTime(): string {
+  const d = new Date();
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function getNextQuarterHour(): string {
+  const d = new Date();
+  const currentMinutes = d.getMinutes();
+  const roundedMinutes = Math.ceil((currentMinutes + 1) / 15) * 15;
+  d.setMinutes(roundedMinutes, 0, 0);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 export default function AppointmentsPage() {
   const { db, create, update, remove } = useDB();
   const { user } = useAuth();
@@ -62,12 +87,22 @@ export default function AppointmentsPage() {
   const [open, setOpen] = useState(false);
   const [editAppt, setEditAppt] = useState<Appointment | null>(null);
   const [detailAppt, setDetailAppt] = useState<Appointment | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
-    petId: '', service: services[0], date: today(), time: '09:00',
+    petId: '', service: services[0], date: getLocalToday(), time: '09:00',
     durationMin: '30', bookingType: 'Online' as Appointment['bookingType'],
     followUpDate: '', followUpReminder: false,
   });
-  const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: string | boolean) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (formErrors[k]) {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+    }
+  };
 
   const sorted = useMemo(() => {
     if (!db) return [];
@@ -126,6 +161,7 @@ export default function AppointmentsPage() {
 
   const openEdit = (a: Appointment) => {
     setEditAppt(a);
+    setFormErrors({});
     setForm({
       petId: a.petId, service: a.service, date: a.date, time: a.time,
       durationMin: String(a.durationMin), bookingType: a.bookingType ?? 'Online',
@@ -136,9 +172,13 @@ export default function AppointmentsPage() {
 
   const openNew = (presetDate?: string, presetType?: Appointment['bookingType']) => {
     setEditAppt(null);
+    setFormErrors({});
+    const localToday = getLocalToday();
+    const effectiveDate = presetDate && presetDate >= localToday ? presetDate : localToday;
+    const initialTime = effectiveDate === localToday ? getNextQuarterHour() : '09:00';
     setForm({
       petId: '', service: presetType === 'Emergency' ? 'Emergency' : presetType === 'Walk-in' ? 'Walk-in' : services[0],
-      date: presetDate ?? today(), time: '09:00', durationMin: '30',
+      date: effectiveDate, time: initialTime, durationMin: '30',
       bookingType: presetType ?? 'Online',
       followUpDate: '', followUpReminder: false,
     });
@@ -146,8 +186,46 @@ export default function AppointmentsPage() {
   };
 
   const saveAppt = () => {
+    const errs: Record<string, string> = {};
+    if (!form.petId) {
+      errs.petId = 'Please select a patient';
+    }
+    if (!form.service?.trim()) {
+      errs.service = 'Please select a service';
+    }
+
+    const localToday = getLocalToday();
+    const localNow = getLocalCurrentTime();
+
+    if (!form.date) {
+      errs.date = 'Please select an appointment date';
+    } else if (form.date < localToday) {
+      errs.date = 'Cannot book an appointment for a past date';
+    }
+
+    if (!form.time) {
+      errs.time = 'Please select an appointment time';
+    } else if (form.date === localToday && form.time < localNow) {
+      errs.time = 'Cannot select a past time for today';
+    }
+
+    if (form.followUpReminder && form.followUpDate) {
+      if (form.followUpDate < (form.date || localToday)) {
+        errs.followUpDate = 'Follow-up date cannot be earlier than appointment date';
+      }
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+
     const pet = db?.pets.find((p) => p.id === form.petId);
-    if (!pet) return;
+    if (!pet) {
+      setFormErrors({ petId: 'Selected patient does not exist' });
+      return;
+    }
+
     const t = form.date === today() ? nextToken : 1;
     if (editAppt) {
       update('appointments', editAppt.id, {
@@ -168,6 +246,7 @@ export default function AppointmentsPage() {
     }
     setOpen(false);
     setEditAppt(null);
+    setFormErrors({});
   };
 
   if (!db) return <Shell module="appointments" title="Appointments"><div className="text-sm text-ink/50">Loading…</div></Shell>;
@@ -175,7 +254,7 @@ export default function AppointmentsPage() {
   return (
     <Shell title="Appointments" subtitle="Scheduling, queue management, and calendar">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line w-fit mb-5">
+      <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line max-w-full overflow-x-auto [scrollbar-width:none] shrink-0 mb-5">
         {([
           { id: 'calendar' as TabId, label: 'Calendar', icon: CalendarDays },
           { id: 'queue' as TabId, label: 'Queue & Tokens', icon: ListOrdered },
@@ -185,7 +264,7 @@ export default function AppointmentsPage() {
           <button
             key={tb.id}
             onClick={() => setTab(tb.id)}
-            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium shrink-0 whitespace-nowrap transition-colors ${
               tab === tb.id ? 'bg-lilac text-plum' : 'text-ink/60 hover:bg-canvas'
             }`}
           >
@@ -205,13 +284,13 @@ export default function AppointmentsPage() {
       {tab === 'calendar' && (
         <>
           {/* View controls */}
-          <div className="flex flex-col sm:flex-row gap-3 mb-5">
-            <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 mb-5">
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line max-w-full overflow-x-auto [scrollbar-width:none] shrink-0">
               {(['day', 'week', 'month'] as ViewMode[]).map((vm) => (
                 <button
                   key={vm}
                   onClick={() => setViewMode(vm)}
-                  className={`px-3 h-8 rounded-md text-xs font-medium capitalize transition-colors ${
+                  className={`px-3 h-8 rounded-md text-xs font-medium capitalize shrink-0 transition-colors ${
                     viewMode === vm ? 'bg-lilac text-plum' : 'text-ink/60 hover:bg-canvas'
                   }`}
                 >
@@ -219,7 +298,7 @@ export default function AppointmentsPage() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-2 px-3 h-10 rounded-lg bg-white border border-line">
+            <div className="flex items-center justify-between sm:justify-start gap-2 px-3 h-10 rounded-lg bg-white border border-line">
               <button onClick={() => setCurrentDate(addDays(currentDate, viewMode === 'day' ? -1 : viewMode === 'week' ? -7 : -30))} className="text-ink/50 hover:text-ink">
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -233,10 +312,12 @@ export default function AppointmentsPage() {
               </button>
               <button onClick={() => setCurrentDate(new Date())} className="ml-1 text-[11px] text-plum font-medium hover:underline">Today</button>
             </div>
-            <div className="flex-1" />
-            <Button onClick={() => openNew()}><Plus className="w-4 h-4" /> Book</Button>
-            <Button variant="outline" onClick={() => openNew(today(), 'Walk-in')}><Footprints className="w-4 h-4" /> Walk-in</Button>
-            <Button variant="danger" onClick={() => openNew(today(), 'Emergency')}><AlertTriangle className="w-4 h-4" /> Emergency</Button>
+            <div className="flex-1 hidden sm:block" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button onClick={() => openNew()}><Plus className="w-4 h-4" /> Book</Button>
+              <Button variant="outline" onClick={() => openNew(getLocalToday(), 'Walk-in')}><Footprints className="w-4 h-4" /> Walk-in</Button>
+              <Button variant="danger" onClick={() => openNew(getLocalToday(), 'Emergency')}><AlertTriangle className="w-4 h-4" /> Emergency</Button>
+            </div>
           </div>
 
           {/* Day view */}
@@ -269,32 +350,39 @@ export default function AppointmentsPage() {
                 {todayQueue.map((a, i) => {
                   const BTIcon = bookingTypeIcon[a.bookingType] || Globe;
                   return (
-                    <div key={a.id} className={`flex items-center gap-3 rounded-xl border p-3 ${a.status === 'In consultation' ? 'border-coral/30 bg-coral/5' : 'border-line bg-white'}`}>
-                      <div className="w-10 h-10 rounded-xl bg-lilac text-plum flex items-center justify-center text-sm font-bold shrink-0">
-                        {a.tokenNumber || i + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-ink">{petName(a.petId)}</span>
-                          <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
-                            <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
-                          </span>
+                    <div key={a.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border p-3.5 ${a.status === 'In consultation' ? 'border-coral/30 bg-coral/5' : 'border-line bg-white'}`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-lilac text-plum flex items-center justify-center text-sm font-bold shrink-0">
+                          {a.tokenNumber || i + 1}
                         </div>
-                        <div className="text-[11px] text-ink/50">{a.service}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink">{petName(a.petId)}</span>
+                            <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
+                              <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-ink/50">{a.service}</div>
+                        </div>
+                        <div className="sm:hidden shrink-0">
+                          <Badge status={a.status} />
+                        </div>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="hidden sm:block text-right shrink-0">
                         <Badge status={a.status} />
                       </div>
-                      {a.status === 'Checked-in' && (
-                        <Button size="sm" variant="outline" onClick={() => advanceStatus(a.id)}>
-                          <Stethoscope className="w-3.5 h-3.5" /> Start
-                        </Button>
-                      )}
-                      {a.status === 'In consultation' && (
-                        <Button size="sm" onClick={() => advanceStatus(a.id)}>
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Complete
-                        </Button>
-                      )}
+                      <div className="flex justify-end sm:justify-start">
+                        {a.status === 'Checked-in' && (
+                          <Button size="sm" variant="outline" onClick={() => advanceStatus(a.id)}>
+                            <Stethoscope className="w-3.5 h-3.5 mr-1 text-plum" /> Start
+                          </Button>
+                        )}
+                        {a.status === 'In consultation' && (
+                          <Button size="sm" onClick={() => advanceStatus(a.id)}>
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Complete
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -308,7 +396,7 @@ export default function AppointmentsPage() {
               <ListOrdered className="w-4 h-4 text-plum" />
               <span className="text-sm font-semibold text-ink">Token System — Today</span>
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
               <div className="rounded-xl bg-canvas p-3 text-center">
                 <div className="text-lg font-semibold text-ink">{nextToken}</div>
                 <div className="text-[10px] text-ink/50">Next token</div>
@@ -349,22 +437,26 @@ export default function AppointmentsPage() {
                 {waitlist.map((a, i) => {
                   const BTIcon = bookingTypeIcon[a.bookingType] || Globe;
                   return (
-                    <div key={a.id} className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
-                        {i + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-ink">{petName(a.petId)}</span>
-                          <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
-                            <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
-                          </span>
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
+                          {i + 1}
                         </div>
-                        <div className="text-[11px] text-ink/50">{a.time} · {a.service}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-ink">{petName(a.petId)}</span>
+                            <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
+                              <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-ink/50">{a.time} · {a.service}</div>
+                        </div>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => advanceStatus(a.id)}>
-                        <UserCheck className="w-3.5 h-3.5" /> Check in
-                      </Button>
+                      <div className="flex justify-end sm:justify-start">
+                        <Button size="sm" variant="outline" onClick={() => advanceStatus(a.id)}>
+                          <UserCheck className="w-3.5 h-3.5 mr-1" /> Check in
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -401,7 +493,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Book / Edit modal */}
-      <Modal open={open} onClose={() => { setOpen(false); setEditAppt(null); }} title={editAppt ? 'Edit appointment' : 'Book an appointment'}>
+      <Modal open={open} onClose={() => { setOpen(false); setEditAppt(null); setFormErrors({}); }} title={editAppt ? 'Edit appointment' : 'Book an appointment'}>
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
             {(['Online', 'Walk-in', 'Emergency'] as const).map((bt) => {
@@ -420,30 +512,69 @@ export default function AppointmentsPage() {
               );
             })}
           </div>
-          <Field label="Patient">
-            <Select value={form.petId} onChange={(e) => set('petId', e.target.value)}>
+          <Field label="Patient" required error={formErrors.petId}>
+            <Select
+              value={form.petId}
+              onChange={(e) => {
+                set('petId', e.target.value);
+                if (formErrors.petId) setFormErrors((prev) => ({ ...prev, petId: '' }));
+              }}
+            >
               <option value="">Select a pet…</option>
               {db.pets.map((p) => <option key={p.id} value={p.id}>{p.name} ({ownerName(p.ownerId)})</option>)}
             </Select>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Service">
-              <Select value={form.service} onChange={(e) => set('service', e.target.value)}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Service" required error={formErrors.service}>
+              <Select
+                value={form.service}
+                onChange={(e) => {
+                  set('service', e.target.value);
+                  if (formErrors.service) setFormErrors((prev) => ({ ...prev, service: '' }));
+                }}
+              >
                 {services.map((s) => <option key={s}>{s}</option>)}
               </Select>
             </Field>
-            <Field label="Date"><DateInput value={form.date} onChange={(e) => set('date', e.target.value)} /></Field>
-            <Field label="Time">
-              <TimeInput value={form.time} onChange={(e) => set('time', e.target.value)} />
+            <Field label="Date" required error={formErrors.date}>
+              <DateInput
+                value={form.date}
+                min={getLocalToday()}
+                onChange={(e) => {
+                  set('date', e.target.value);
+                  if (formErrors.date) setFormErrors((prev) => ({ ...prev, date: '' }));
+                }}
+              />
             </Field>
-            <Field label="Duration (min)"><NumberInput value={form.durationMin} onChange={(e) => set('durationMin', e.target.value)} placeholder="30" /></Field>
+            <Field label="Time" required error={formErrors.time}>
+              <TimeInput
+                value={form.time}
+                min={form.date === getLocalToday() ? getLocalCurrentTime() : '00:00'}
+                onChange={(e) => {
+                  set('time', e.target.value);
+                  if (formErrors.time) setFormErrors((prev) => ({ ...prev, time: '' }));
+                }}
+              />
+            </Field>
+            <Field label="Duration (min)">
+              <NumberInput value={form.durationMin} onChange={(e) => set('durationMin', e.target.value)} placeholder="30" />
+            </Field>
           </div>
           <div className="border-t border-line pt-3 space-y-3">
-            <Field label="Follow-up date"><DateInput value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} /></Field>
+            <Field label="Follow-up date" error={formErrors.followUpDate}>
+              <DateInput
+                value={form.followUpDate}
+                min={form.date || getLocalToday()}
+                onChange={(e) => {
+                  set('followUpDate', e.target.value);
+                  if (formErrors.followUpDate) setFormErrors((prev) => ({ ...prev, followUpDate: '' }));
+                }}
+              />
+            </Field>
             <Checkbox checked={form.followUpReminder} onChange={(e) => set('followUpReminder', e.target.checked)} label="Follow-up reminder" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => { setOpen(false); setEditAppt(null); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setOpen(false); setEditAppt(null); setFormErrors({}); }}>Cancel</Button>
             <Button onClick={saveAppt}><Stethoscope className="w-4 h-4" /> {editAppt ? 'Save changes' : 'Book'}</Button>
           </div>
         </div>
@@ -555,48 +686,108 @@ function DayView({ date, appts, petName, ownerName, onDetail, onAdvance, onCance
     return <Card><EmptyState icon={CalendarDays} title="No appointments" hint="Book an appointment for this day." /></Card>;
   }
   return (
-    <Card className="divide-y divide-line">
+    <Card className="divide-y divide-line overflow-hidden">
       {appts.map((a) => {
         const next = statusFlow[a.status];
         const actionLabel = statusActionLabel[a.status];
         const BTIcon = bookingTypeIcon[a.bookingType] || Globe;
         return (
-          <div key={a.id} className="flex items-center gap-4 px-4 py-3 group">
-            <button onClick={() => onDetail(a)} className="flex flex-col items-center w-14 shrink-0 text-left">
-              <Clock className="w-3.5 h-3.5 text-ink/40" />
-              <span className="text-sm font-semibold text-ink mt-0.5">{a.time}</span>
-              <span className="text-[10px] text-ink/40">{a.durationMin}min</span>
-            </button>
-            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onDetail(a)}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink">{petName(a.petId)} · {a.service}</span>
-                <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
-                  <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
-                </span>
-                {a.followUpReminder && <Bell className="w-3 h-3 text-amber-500" />}
+          <div key={a.id} className="group">
+            {/* Mobile Card View (< md) */}
+            <div className="block md:hidden p-4 space-y-2.5 bg-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink bg-canvas px-2.5 py-1 rounded-md border border-line">
+                    <Clock className="w-3.5 h-3.5 text-plum" /> {a.time} ({a.durationMin}m)
+                  </span>
+                  {a.tokenNumber > 0 && (
+                    <span className="text-[10px] font-mono text-ink/50 bg-canvas px-1.5 py-0.5 rounded border border-line">
+                      #{a.tokenNumber}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
+                    <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
+                  </span>
+                  <Badge status={a.status} />
+                </div>
               </div>
-              <div className="text-[11px] text-ink/50">{ownerName(a.ownerId)}</div>
+
+              <div className="cursor-pointer" onClick={() => onDetail(a)}>
+                <div className="text-base font-semibold text-ink flex items-center gap-2">
+                  {petName(a.petId)}
+                  <span className="text-xs font-normal text-ink/50">· {a.service}</span>
+                  {a.followUpReminder && <Bell className="w-3.5 h-3.5 text-amber-500" />}
+                </div>
+                <div className="text-xs text-ink/60 mt-0.5">
+                  Owner: <span className="font-medium text-ink/80">{ownerName(a.ownerId)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-line/60">
+                <div>
+                  {next && actionLabel && (
+                    <Button size="sm" variant="outline" onClick={() => onAdvance(a.id)}>
+                      {a.status === 'Scheduled' ? <UserCheck className="w-4 h-4 mr-1 text-plum" /> : a.status === 'Checked-in' ? <Stethoscope className="w-4 h-4 mr-1 text-plum" /> : <CheckCircle2 className="w-4 h-4 mr-1 text-emerald-600" />}
+                      {actionLabel}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {a.status !== 'Completed' && a.status !== 'Cancelled' && (
+                    <button onClick={() => onCancel(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Cancel">
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button onClick={() => onEdit(a)} className="w-8 h-8 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-            {a.tokenNumber > 0 && <span className="hidden md:inline text-[10px] text-ink/40 font-mono">#{a.tokenNumber}</span>}
-            <Badge status={a.status} />
-            <div className="flex items-center gap-1 transition-opacity">
-              {next && actionLabel && (
-                <Button size="sm" variant="outline" onClick={() => onAdvance(a.id)}>
-                  {a.status === 'Scheduled' ? <UserCheck className="w-5 h-5" /> : a.status === 'Checked-in' ? <Stethoscope className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-                  {actionLabel}
-                </Button>
-              )}
-              {a.status !== 'Completed' && a.status !== 'Cancelled' && (
-                <button onClick={() => onCancel(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Cancel">
-                  <XCircle className="w-4 h-4" />
+
+            {/* Desktop Row View (>= md) */}
+            <div className="hidden md:flex items-center gap-4 px-4 py-3 hover:bg-canvas/30 transition-colors">
+              <button onClick={() => onDetail(a)} className="flex flex-col items-center w-14 shrink-0 text-left">
+                <Clock className="w-3.5 h-3.5 text-ink/40" />
+                <span className="text-sm font-semibold text-ink mt-0.5">{a.time}</span>
+                <span className="text-[10px] text-ink/40">{a.durationMin}min</span>
+              </button>
+              <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onDetail(a)}>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-ink">{petName(a.petId)} · {a.service}</span>
+                  <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium ${bookingTypeColor[a.bookingType] || 'bg-ink/10 text-ink/60'}`}>
+                    <BTIcon className="w-2.5 h-2.5" /> {a.bookingType}
+                  </span>
+                  {a.followUpReminder && <Bell className="w-3 h-3 text-amber-500" />}
+                </div>
+                <div className="text-[11px] text-ink/50">{ownerName(a.ownerId)}</div>
+              </div>
+              {a.tokenNumber > 0 && <span className="text-[10px] text-ink/40 font-mono">#{a.tokenNumber}</span>}
+              <Badge status={a.status} />
+              <div className="flex items-center gap-1 transition-opacity">
+                {next && actionLabel && (
+                  <Button size="sm" variant="outline" onClick={() => onAdvance(a.id)}>
+                    {a.status === 'Scheduled' ? <UserCheck className="w-5 h-5" /> : a.status === 'Checked-in' ? <Stethoscope className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                    {actionLabel}
+                  </Button>
+                )}
+                {a.status !== 'Completed' && a.status !== 'Cancelled' && (
+                  <button onClick={() => onCancel(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Cancel">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+                <button onClick={() => onEdit(a)} className="w-8 h-8 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit">
+                  <Edit2 className="w-4 h-4" />
                 </button>
-              )}
-              <button onClick={() => onEdit(a)} className="w-8 h-8 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit">
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
-                <Trash2 className="w-4 h-4" />
-              </button>
+                <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         );

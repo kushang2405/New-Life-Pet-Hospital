@@ -122,7 +122,50 @@ export default function ReportsPage() {
           filterLabel="types"
           filterOptions={[{ value: 'BIO', label: 'BIO' }, { value: 'CBC', label: 'CBC' }]}
         />
-        <div className="overflow-x-auto border border-line rounded-xl">
+        {/* Mobile Cards View (< md) */}
+        <div className="block md:hidden border border-line rounded-xl divide-y divide-line overflow-hidden bg-white mb-4">
+          {pageData.rows.map((report) => (
+            <div key={report.id} className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-ink text-base flex items-center gap-2">
+                    {report.petSnapshot?.name || 'Pet'}
+                    <Badge status={report.reportType} />
+                  </div>
+                  <div className="text-xs text-ink/60 mt-0.5">
+                    Owner: <span className="font-medium text-ink/80">{report.ownerSnapshot?.name || '—'}</span>
+                  </div>
+                </div>
+                <span className="text-[11px] text-ink/40 shrink-0">
+                  {new Date(report.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-ink/60 bg-canvas/60 rounded-lg px-3 py-2">
+                <span>Results: <strong className="text-ink">{report.analytes?.length ?? 0} analytes</strong></span>
+                <span className="text-[11px] text-ink/40">{new Date(report.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div className="flex items-center justify-end gap-1.5 pt-1">
+                <Button size="sm" variant="outline" onClick={() => sendOnWhatsApp(report)} disabled={sendingId === report.id} className="text-emerald-700 hover:bg-emerald-50 text-xs">
+                  <MessageCircle className="w-3.5 h-3.5 mr-1 text-emerald-600" /> WhatsApp
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => openReport(report)} disabled={openingId === report.id} className="text-plum hover:bg-lilac text-xs">
+                  <Eye className="w-3.5 h-3.5 mr-1 text-plum" /> View
+                </Button>
+                <button onClick={() => openEdit(report)} title="Edit report" aria-label="Edit report" className={`${actionButton} text-sky-700 hover:bg-sky-50`}>
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => { setDeleteError(''); setDeleting(report); }} title="Delete report" aria-label="Delete report" className={`${actionButton} text-coral hover:bg-coral/10`}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {!reports.length && !loadError && <EmptyState icon={FileText} title="No reports yet" hint="Use Add report to create your first BIO or CBC report." />}
+          {reports.length > 0 && !filtered.length && <div className="p-6 text-center text-sm text-ink/50">No reports match your search or filter.</div>}
+        </div>
+
+        {/* Desktop Table View (>= md) */}
+        <div className="hidden md:block overflow-x-auto border border-line rounded-xl">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-canvas text-ink/55 text-xs">
               <tr>

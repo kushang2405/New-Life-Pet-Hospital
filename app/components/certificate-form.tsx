@@ -33,6 +33,7 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
   const [includeHeader, setIncludeHeader] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const ownerPets = useMemo(() => pets.filter((pet) => pet.ownerId === ownerId), [pets, ownerId]);
   const selectedOwner = owners.find((owner) => owner.id === ownerId);
@@ -42,26 +43,31 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
     setOwnerId(id);
     setPetId('');
     setChipNumber('');
+    if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
   };
 
   const selectPet = (id: string) => {
     setPetId(id);
     setChipNumber(pets.find((pet) => pet.id === id)?.microchipNumber ?? '');
+    if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
   };
 
   const submit = async () => {
-    if (!selectedOwner || !selectedPet) {
-      setError('Select an owner and a pet before creating the certificate.');
-      return;
-    }
-    if (!certificateDate) {
-      setError('Choose the certificate date.');
-      return;
-    }
+    const errs: Record<string, string> = {};
+    if (!selectedOwner) errs.owner = 'Please select an owner';
+    if (!selectedPet) errs.pet = 'Please select a pet';
+    if (!certificateDate) errs.date = 'Choose the certificate date';
     if (certificateType === 'Microchip' && !chipNumber.trim()) {
-      setError('Enter the microchip number for a Microchip certificate.');
+      errs.chip = 'Enter the microchip number for a Microchip certificate';
+    }
+
+    if (Object.keys(errs).length > 0 || !selectedOwner || !selectedPet) {
+      setFieldErrors(errs);
+      setError('Please fill in the compulsory fields below.');
       return;
     }
+
+    setFieldErrors({});
     setBusy(true);
     setError('');
     try {
@@ -107,16 +113,22 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
             {CERTIFICATE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
           </Select>
         </Field>
-        <Field label="Certificate date">
-          <DateInput value={certificateDate} onChange={(e) => setCertificateDate(e.target.value)} />
+        <Field label="Certificate date" required error={fieldErrors.date}>
+          <DateInput
+            value={certificateDate}
+            onChange={(e) => {
+              setCertificateDate(e.target.value);
+              if (fieldErrors.date) setFieldErrors((prev) => ({ ...prev, date: '' }));
+            }}
+          />
         </Field>
-        <Field label="Owner">
+        <Field label="Owner" required error={fieldErrors.owner}>
           <Select value={ownerId} onChange={(e) => selectOwner(e.target.value)}>
             <option value="">Select owner</option>
             {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
           </Select>
         </Field>
-        <Field label="Pet">
+        <Field label="Pet" required error={fieldErrors.pet}>
           <Select value={petId} onChange={(e) => selectPet(e.target.value)} disabled={!ownerId}>
             <option value="">Select pet</option>
             {ownerPets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
@@ -125,8 +137,15 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
       </div>
 
       {certificateType === 'Microchip' && (
-        <Field label="Microchip number">
-          <Input value={chipNumber} onChange={(e) => setChipNumber(e.target.value)} placeholder="Chip number read by scanner" />
+        <Field label="Microchip number" required error={fieldErrors.chip}>
+          <Input
+            value={chipNumber}
+            onChange={(e) => {
+              setChipNumber(e.target.value);
+              if (fieldErrors.chip) setFieldErrors((prev) => ({ ...prev, chip: '' }));
+            }}
+            placeholder="Chip number read by scanner"
+          />
         </Field>
       )}
 

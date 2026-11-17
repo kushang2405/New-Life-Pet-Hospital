@@ -9,6 +9,14 @@ type ReminderStats = {
   totalSent: number;
   sentLast24h: number;
   pending: number;
+  lastRun?: {
+    lastRunAt: string;
+    source: 'interval' | 'vps-cron' | 'manual';
+    dueCount: number;
+    sentCount: number;
+    errorsCount: number;
+    durationMs: number;
+  } | null;
   recent: { id: string; ownerName: string; petName: string; date: string; time: string; sentAt: string; whatsappStatus: string; whatsappError: string }[];
 };
 
@@ -122,13 +130,16 @@ export default function WhatsAppReminders() {
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
         {runMessage && <span className="mr-auto text-sm text-ink/70">{runMessage}</span>}
+        {/* Commented per user request:
         <Button variant="outline" size="sm" onClick={checkMetaStatus} disabled={checkingStatus}>
           {checkingStatus ? 'Checking...' : 'Check Meta templates'}
         </Button>
         <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>Preview reminder</Button>
         <Button variant="outline" size="sm" onClick={() => { setTestOpen(true); setTestResult(null); }}>Send test reminder</Button>
+        */}
         <Button size="sm" onClick={runDueReminders} disabled={running}>{running ? 'Sending...' : 'Send due reminders now'}</Button>
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         <StatTile label="Accepted by WhatsApp" value={stats.totalSent} tone="text-emerald-700" />
         <StatTile label="Accepted in last 24 hours" value={stats.sentLast24h} tone="text-plum" />
@@ -137,7 +148,40 @@ export default function WhatsAppReminders() {
       <div className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
         <MessageCircle className="w-4 h-4 text-emerald-700" /> Recent reminders
       </div>
-      <div className="overflow-x-auto border border-line rounded-xl">
+
+      {/* Mobile Card View (screens < md) */}
+      <div className="block md:hidden border border-line rounded-xl divide-y divide-line overflow-hidden bg-white mb-4">
+        {stats.recent.map((r) => (
+          <div key={r.id} className="p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-ink text-sm">{r.petName || 'Pet'}</span>
+              <span className={`text-[11px] font-semibold capitalize px-2 py-0.5 rounded-full ${
+                r.whatsappStatus === 'failed'
+                  ? 'bg-coral/15 text-coral'
+                  : r.whatsappStatus === 'delivered' || r.whatsappStatus === 'read'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-700'
+              }`}>
+                {r.whatsappStatus || 'accepted'}
+              </span>
+            </div>
+            <div className="text-xs text-ink/70">
+              <span className="text-ink/40">Owner:</span> {r.ownerName || '—'}
+            </div>
+            <div className="text-xs text-ink/70">
+              <span className="text-ink/40">Appointment:</span> <strong className="text-ink">{r.date}</strong> at {r.time}
+            </div>
+            <div className="text-[11px] text-ink/45 pt-0.5">
+              Sent: {new Date(r.sentAt).toLocaleString()}
+            </div>
+            {r.whatsappError && <div className="text-[10px] text-coral mt-1">{r.whatsappError}</div>}
+          </div>
+        ))}
+        {!stats.recent.length && <EmptyState icon={MessageCircle} title="No reminders accepted yet" hint="Reminders are sent automatically 24 hours before each appointment." />}
+      </div>
+
+      {/* Desktop Table View (screens >= md) */}
+      <div className="hidden md:block overflow-x-auto border border-line rounded-xl">
         <table className="w-full min-w-[560px] text-sm">
           <thead className="bg-canvas text-ink/55 text-xs">
             <tr>
@@ -150,9 +194,9 @@ export default function WhatsAppReminders() {
           </thead>
           <tbody>
             {stats.recent.map((r) => (
-              <tr key={r.id} className="border-t border-line">
+              <tr key={r.id} className="border-t border-line hover:bg-canvas/40 transition-colors">
                 <td className="p-3 text-ink/70">{new Date(r.sentAt).toLocaleString()}</td>
-                <td className="p-3 text-ink">{r.ownerName || '—'}</td>
+                <td className="p-3 text-ink font-medium">{r.ownerName || '—'}</td>
                 <td className="p-3 text-ink/70">{r.petName || '—'}</td>
                 <td className="p-3 text-ink/70">{r.date} at {r.time}</td>
                 <td className="p-3"><span className={`text-xs font-medium capitalize ${r.whatsappStatus === 'failed' ? 'text-coral' : r.whatsappStatus === 'delivered' || r.whatsappStatus === 'read' ? 'text-emerald-700' : 'text-amber-700'}`}>{r.whatsappStatus || 'accepted'}</span>{r.whatsappError && <div className="text-[10px] text-coral mt-1">{r.whatsappError}</div>}</td>

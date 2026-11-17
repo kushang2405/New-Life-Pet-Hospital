@@ -29,8 +29,13 @@ export default function PatientsPage() {
   const [ownerOpen, setOwnerOpen] = useState(false);
   const [ownerForm, setOwnerForm] = useState({ name: '', phone: '', address: '', occupation: '', notes: '' });
   const [form, setForm] = useState(defaultForm);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [ownerErrors, setOwnerErrors] = useState<Record<string, string>>({});
 
-  const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: string | boolean) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (formErrors[k]) setFormErrors((prev) => ({ ...prev, [k]: '' }));
+  };
 
   const filteredPets = useMemo(() => {
     if (!db) return [];
@@ -69,18 +74,27 @@ export default function PatientsPage() {
 
   const openNew = () => {
     setEditPet(null);
+    setFormErrors({});
     setForm(defaultForm);
     setOpen(true);
   };
 
   const openEditOwner = (o: Owner) => {
     setEditOwnerObj(o);
+    setOwnerErrors({});
     setOwnerForm({ name: o.name, phone: o.phone, address: o.address ?? '', occupation: o.occupation ?? '', notes: o.notes ?? '' });
     setOwnerOpen(true);
   };
 
   const saveOwner = () => {
-    if (!editOwnerObj || !ownerForm.name) return;
+    if (!editOwnerObj) return;
+    const errs: Record<string, string> = {};
+    if (!ownerForm.name?.trim()) errs.name = 'Please enter owner name';
+    if (!ownerForm.phone?.trim()) errs.phone = 'Please enter phone number';
+    if (Object.keys(errs).length > 0) {
+      setOwnerErrors(errs);
+      return;
+    }
     update('owners', editOwnerObj.id, {
       name: ownerForm.name,
       phone: ownerForm.phone,
@@ -90,12 +104,14 @@ export default function PatientsPage() {
     });
     setOwnerOpen(false);
     setEditOwnerObj(null);
+    setOwnerErrors({});
   };
 
   const openEdit = (p: Pet) => {
     const o = ownerOf(p.ownerId);
     setEditPet(p);
     setEditOwnerObj(o ?? null);
+    setFormErrors({});
     setForm({
       ownerName: o?.name ?? '', phone: o?.phone ?? '',
       petName: p.name, species: p.species, breed: p.breed, gender: p.gender,
@@ -111,7 +127,17 @@ export default function PatientsPage() {
   };
 
   const savePatient = () => {
-    if (!form.petName) return;
+    const errs: Record<string, string> = {};
+    if (!form.ownerName?.trim()) errs.ownerName = 'Please enter owner name';
+    if (!form.phone?.trim()) errs.phone = 'Please enter phone number';
+    if (!form.petName?.trim()) errs.petName = 'Please enter pet name';
+    if (!form.species?.trim()) errs.species = 'Please select species';
+
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      return;
+    }
+
     const petData: Partial<Pet> = {
       name: form.petName, species: form.species, breed: form.breed,
       gender: form.gender as Pet['gender'], color: form.color,
@@ -129,7 +155,6 @@ export default function PatientsPage() {
         update('owners', editOwnerObj.id, { name: form.ownerName, phone: form.phone });
       }
     } else {
-      if (!form.ownerName) return;
       let owner = db?.owners.find((o) => o.name.toLowerCase() === form.ownerName.toLowerCase());
       if (!owner) {
         owner = { id: newId('own'), customerId: `CUST-${String((db?.owners.length ?? 0) + 1).padStart(4, '0')}`, name: form.ownerName, phone: form.phone, email: '', address: '', dateOfBirth: '', occupation: '', emergencyContacts: [], familyMembers: [], membershipPlan: 'None', membershipSince: today(), loyaltyPoints: 0, creditBalance: 0, communicationLog: [], notifications: [], feedback: [], createdAt: today() };
@@ -146,6 +171,7 @@ export default function PatientsPage() {
     }
     setOpen(false);
     setEditPet(null);
+    setFormErrors({});
   };
 
   const deletePet = (id: string) => remove('pets', id);
@@ -169,12 +195,12 @@ export default function PatientsPage() {
           placeholder="Search by pet name, breed, owner, microchip, QR…"
           className="flex-1"
         />
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line">
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line max-w-full overflow-x-auto [scrollbar-width:none] shrink-0">
           {(['pets', 'owners'] as const).map((tb) => (
             <button
               key={tb}
               onClick={() => setTab(tb)}
-              className={`px-3 h-8 rounded-md text-xs font-medium capitalize transition-colors ${
+              className={`px-3 h-8 rounded-md text-xs font-medium capitalize shrink-0 whitespace-nowrap transition-colors ${
                 tab === tb ? 'bg-lilac text-plum' : 'text-ink/60 hover:bg-canvas'
               }`}
             >
@@ -332,20 +358,26 @@ export default function PatientsPage() {
       )}
 
       {/* Add / Edit modal */}
-      <Modal open={open} onClose={() => { setOpen(false); setEditPet(null); }} title={editPet ? 'Edit patient' : 'Register a new patient'}>
+      <Modal open={open} onClose={() => { setOpen(false); setEditPet(null); setFormErrors({}); }} title={editPet ? 'Edit patient' : 'Register a new patient'}>
         <div className="space-y-4">
           <div>
             <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide mb-2">Owner</div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Full name"><Input value={form.ownerName} onChange={(e) => set('ownerName', e.target.value)} placeholder="Jane Doe" /></Field>
-              <Field label="Phone"><Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+1 415 555 0100" /></Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Full name" required error={formErrors.ownerName}>
+                <Input value={form.ownerName} onChange={(e) => set('ownerName', e.target.value)} placeholder="Jane Doe" />
+              </Field>
+              <Field label="Phone" required error={formErrors.phone}>
+                <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+1 415 555 0100" />
+              </Field>
             </div>
           </div>
           <div className="border-t border-line pt-4">
             <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide mb-2">Pet — Basic Info</div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Pet name"><Input value={form.petName} onChange={(e) => set('petName', e.target.value)} placeholder="Biscuit" /></Field>
-              <Field label="Species">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Pet name" required error={formErrors.petName}>
+                <Input value={form.petName} onChange={(e) => set('petName', e.target.value)} placeholder="Biscuit" />
+              </Field>
+              <Field label="Species" required error={formErrors.species}>
                 <Select value={form.species} onChange={(e) => set('species', e.target.value)}>
                   {speciesOptions.map((s) => <option key={s}>{s}</option>)}
                 </Select>
@@ -362,7 +394,7 @@ export default function PatientsPage() {
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => { setOpen(false); setEditPet(null); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setOpen(false); setEditPet(null); setFormErrors({}); }}>Cancel</Button>
             <Button onClick={savePatient}>{editPet ? 'Save changes' : 'Save patient'}</Button>
           </div>
         </div>
@@ -370,17 +402,35 @@ export default function PatientsPage() {
 
 
       {/* Edit owner modal */}
-      <Modal open={ownerOpen} onClose={() => { setOwnerOpen(false); setEditOwnerObj(null); }} title="Edit owner">
+      <Modal open={ownerOpen} onClose={() => { setOwnerOpen(false); setEditOwnerObj(null); setOwnerErrors({}); }} title="Edit owner">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Full name"><Input value={ownerForm.name} onChange={(e) => setOwnerForm((f) => ({ ...f, name: e.target.value }))} placeholder="Jane Doe" /></Field>
-            <Field label="Phone"><Input value={ownerForm.phone} onChange={(e) => setOwnerForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+1 415 555 0100" /></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Full name" required error={ownerErrors.name}>
+              <Input
+                value={ownerForm.name}
+                onChange={(e) => {
+                  setOwnerForm((f) => ({ ...f, name: e.target.value }));
+                  if (ownerErrors.name) setOwnerErrors((prev) => ({ ...prev, name: '' }));
+                }}
+                placeholder="Jane Doe"
+              />
+            </Field>
+            <Field label="Phone" required error={ownerErrors.phone}>
+              <Input
+                value={ownerForm.phone}
+                onChange={(e) => {
+                  setOwnerForm((f) => ({ ...f, phone: e.target.value }));
+                  if (ownerErrors.phone) setOwnerErrors((prev) => ({ ...prev, phone: '' }));
+                }}
+                placeholder="+1 415 555 0100"
+              />
+            </Field>
             <Field label="Occupation"><Input value={ownerForm.occupation} onChange={(e) => setOwnerForm((f) => ({ ...f, occupation: e.target.value }))} placeholder="Teacher" /></Field>
           </div>
           <Field label="Address"><Textarea rows={2} value={ownerForm.address} onChange={(e) => setOwnerForm((f) => ({ ...f, address: e.target.value }))} placeholder="123 Main St, Springfield" /></Field>
           <Field label="Notes"><Textarea rows={2} value={ownerForm.notes} onChange={(e) => setOwnerForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Additional notes about the owner…" /></Field>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => { setOwnerOpen(false); setEditOwnerObj(null); }}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setOwnerOpen(false); setEditOwnerObj(null); setOwnerErrors({}); }}>Cancel</Button>
             <Button onClick={saveOwner}>Save owner</Button>
           </div>
         </div>
