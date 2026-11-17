@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Eye, FileText, MessageCircle, Pencil, Plus, Trash2 } from 'lucide-react';
-import { openPdfDataUrlInNewTab } from '../lib/report-pdf';
+import { createReportPdf, openPdfBlobInNewTab, openPdfDataUrlInNewTab } from '../lib/report-pdf';
 import { sendDocumentOnWhatsApp } from '../lib/whatsapp';
 import Shell from '../components/Shell';
 import { Badge, Button, Card, EmptyState, Modal, SectionTitle } from '../components/ui';
@@ -10,7 +10,7 @@ import ReportForm from '../components/report-form';
 import { ListToolbar, Pagination, paginate } from '../components/list-controls';
 import { useDB } from '../lib/store';
 import { authFetch } from '../lib/auth';
-import type { SavedReport } from '../lib/report-types';
+import type { ReportDraft, SavedReport } from '../lib/report-types';
 
 const actionButton = 'w-10 h-10 rounded-lg flex items-center justify-center transition-colors hv-icon';
 
@@ -59,19 +59,35 @@ export default function ReportsPage() {
   };
 
   const openReport = async (report: SavedReport) => {
-    if (report.pdfData) {
-      openPdfDataUrlInNewTab(report.pdfData);
-      return;
-    }
     setOpeningId(report.id);
     setNotice(null);
     try {
-      const full = (await authFetch(`/reports/${report.id}`)) as SavedReport;
-      if (!full?.pdfData) throw new Error('This report has no PDF saved.');
-      report.pdfData = full.pdfData;
-      openPdfDataUrlInNewTab(full.pdfData);
-    } catch (err) {
-      setNotice({ tone: 'err', text: (err as Error).message || 'Could not open the report PDF.' });
+      // Re-generate dynamically using latest template so all existing reports automatically have the new design!
+      const full = report.analytes?.length ? report : ((await authFetch(`/reports/${report.id}`)) as SavedReport);
+      const pet = full.petSnapshot || { id: full.petId, name: 'Pet', species: '', breed: '', gender: '', birthDate: '', weightKg: 0 };
+      const owner = full.ownerSnapshot || { id: full.ownerId, name: 'Owner', phone: '', email: '', address: '' };
+      const draft: ReportDraft = {
+        reportType: full.reportType,
+        otherTestType: full.otherTestType,
+        interpretation: full.interpretation,
+        title: full.title || `${pet.name}-${full.reportType}`,
+        owner,
+        pet,
+        patientDetails: full.patientDetails || {
+          sampleNo: '', date: new Date().toISOString().slice(0, 10), ageGender: '', registeredOn: '',
+          sampleType: '', referredBy: '', doctorName: 'Dr. Arshi K. Vala', doctorPosition: 'M.V.Sc (SURGERY & RADIOLOGY)', uhid: '',
+        },
+        analytes: full.analytes || [],
+        logoDataUrl: full.logoData || undefined,
+      };
+      const pdfBlob = createReportPdf(draft);
+      openPdfBlobInNewTab(pdfBlob);
+    } catch {
+      if (report.pdfData) {
+        openPdfDataUrlInNewTab(report.pdfData);
+      } else {
+        setNotice({ tone: 'err', text: 'Could not open the report PDF.' });
+      }
     } finally {
       setOpeningId('');
     }
