@@ -218,17 +218,21 @@ function generatePdf(r) {
   doc.text(sectionTitle, 296, curY, { align: 'center' });
   curY += 24;
 
+  const cols = isCbc ? [73, 228, 313, 398] : [38, 172, 250, 316, 420];
+  const tableStartX = isCbc ? 73 : 38;
+  const tableW = isCbc ? 450 : 516;
+  const tableEndX = tableStartX + tableW;
+
   doc.setFillColor(236, 236, 236);
-  doc.rect(38, curY - 13, 516, 20, 'F');
+  doc.rect(tableStartX, curY - 13, tableW, 20, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(25, 25, 25);
-  const cols = isCbc ? [38, 172, 250, 316] : [38, 172, 250, 316, 420];
   const headers = isCbc
     ? ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE']
     : ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'];
   headers.forEach((h, idx) => {
-    doc.text(h, cols[idx] + 3, curY);
+    doc.text(h, cols[idx] + (isCbc ? 4 : 3), curY);
   });
   curY += 20;
 
@@ -236,12 +240,12 @@ function generatePdf(r) {
   analytes.forEach((a) => {
     doc.setDrawColor(190, 190, 190);
     doc.setLineWidth(0.5);
-    doc.line(38, curY + 7, 554, curY + 7);
+    doc.line(tableStartX, curY + 7, tableEndX, curY + 7);
 
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(25, 25, 25);
-    doc.text(String(a.name || '').slice(0, 28), cols[0] + 3, curY);
+    doc.text(String(a.name || '').slice(0, 28), cols[0] + (isCbc ? 4 : 3), curY);
 
     doc.setFont('helvetica', 'normal');
     const val = String(a.result || '');
@@ -263,13 +267,13 @@ function generatePdf(r) {
     } else {
       doc.setTextColor(25, 25, 25);
     }
-    doc.text(val.slice(0, 14), cols[1] + 3, curY);
+    doc.text(val.slice(0, 14), cols[1] + (isCbc ? 4 : 3), curY);
 
     doc.setTextColor(25, 25, 25);
-    doc.text(String(a.unit || '').slice(0, 14), cols[2] + 3, curY);
+    doc.text(String(a.unit || '').slice(0, 14), cols[2] + (isCbc ? 4 : 3), curY);
     doc.text(
       String(a.referenceRange || (isCbc ? cbcRef(a.name) : '')).slice(0, 18),
-      cols[3] + 3,
+      cols[3] + (isCbc ? 4 : 3),
       curY
     );
     if (!isCbc) doc.text(String(a.remarks || '').slice(0, 12), cols[4] + 3, curY);

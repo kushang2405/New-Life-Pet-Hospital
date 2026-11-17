@@ -7,6 +7,10 @@ const TEXT_COLOR: [number, number, number] = [25, 25, 25];
 const IN_RANGE_COLOR: [number, number, number] = [30, 80, 200];
 const OUT_OF_RANGE_COLOR: [number, number, number] = [200, 35, 35];
 const COLUMNS = [38, 190, 276, 350, 456, 554];
+const CBC_COLUMNS = [73, 228, 313, 398];
+const CBC_TABLE_START_X = 73;
+const CBC_TABLE_WIDTH = 450;
+const CBC_TABLE_END_X = 523;
 
 function formatSlashDate(dateStr?: string): string {
   if (!dateStr) {
@@ -179,11 +183,21 @@ function drawPageStart(doc: jsPDF, draft: ReportDraft): number {
 }
 
 function drawColumnHeader(doc: jsPDF, y: number, cbc: boolean): number {
+  if (cbc) {
+    doc.setFillColor(236, 236, 236);
+    doc.rect(CBC_TABLE_START_X, y - 13, CBC_TABLE_WIDTH, 20, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    const labels = ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE'];
+    labels.forEach((label, index) => doc.text(label, CBC_COLUMNS[index] + 4, y));
+    doc.setFont('helvetica', 'normal');
+    return y + 20;
+  }
   doc.setFillColor(236, 236, 236);
   doc.rect(38, y - 13, 516, 20, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  const labels = cbc ? ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE'] : ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'];
+  const labels = ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'];
   labels.forEach((label, index) => doc.text(label, COLUMNS[index] + 3, y));
   doc.setFont('helvetica', 'normal');
   return y + 20;
@@ -225,14 +239,14 @@ function drawBioRow(doc: jsPDF, row: ReportAnalyte, y: number): void {
 function drawCbcRow(doc: jsPDF, row: ReportAnalyte, y: number): void {
   const normalized = normalizedRow(row);
   doc.setDrawColor(190, 190, 190);
-  doc.line(38, y + 7, 554, y + 7);
+  doc.line(CBC_TABLE_START_X, y + 7, CBC_TABLE_END_X, y + 7);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(row.name.slice(0, 28), COLUMNS[0] + 3, y);
+  doc.text(row.name.slice(0, 28), CBC_COLUMNS[0] + 4, y);
   doc.setFont('helvetica', 'normal');
-  drawResult(doc, normalized.result.slice(0, 14), normalized.inRange, COLUMNS[1] + 3, y);
-  doc.text(row.unit.slice(0, 14), COLUMNS[2] + 3, y);
-  doc.text(normalized.referenceRange.slice(0, 18), COLUMNS[3] + 3, y);
+  drawResult(doc, normalized.result.slice(0, 14), normalized.inRange, CBC_COLUMNS[1] + 4, y);
+  doc.text(row.unit.slice(0, 14), CBC_COLUMNS[2] + 4, y);
+  doc.text(normalized.referenceRange.slice(0, 18), CBC_COLUMNS[3] + 4, y);
 }
 
 function groupRowsBySection(rows: ReportAnalyte[], fallback: string): Map<string, ReportAnalyte[]> {
