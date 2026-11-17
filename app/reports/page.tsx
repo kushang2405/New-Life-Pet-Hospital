@@ -108,7 +108,7 @@ export default function ReportsPage() {
   if (!db) return <Shell title="Diagnostic Reports"><div className="text-sm text-ink/50">Loading...</div></Shell>;
 
   return (
-    <Shell title="Diagnostic Reports" subtitle="BIO and CBC reports generated from laboratory photos" module="reports">
+    <Shell title="Diagnostic Reports" subtitle="BIO and CBC diagnostic reports" module="reports">
       <Card className="p-5">
         <SectionTitle title="Generated reports" action={<Button onClick={openNew} icon={Plus}>Add report</Button>} />
         {loadError && <div className="mb-4 text-sm text-coral bg-coral/10 border border-coral/20 rounded-lg px-3 py-2">{loadError}</div>}

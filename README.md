@@ -1,6 +1,6 @@
 # PetCare Pro — Veterinary Clinic Management System
 
-PetCare Pro is a web-based veterinary clinic management application for organizing clinic operations, including pet and owner records, appointments, medical records, prescriptions, vaccinations, surgery, laboratory workflows, pharmacy, inventory, boarding, grooming, billing, staff management, and reporting.
+PetCare Pro is a web-based veterinary clinic management application for organizing clinic operations, including pet and owner records, appointments, medical records, prescriptions, vaccinations, surgery, pharmacy, inventory, boarding, grooming, billing, staff management, and reporting.
 
 The application uses **Vetnora Animal Hospital** as sample clinic branding. Replace the sample details with your own clinic information before using the application in production.
 
@@ -233,7 +233,7 @@ The application is designed to centralize veterinary clinic workflows. Depending
 - **Appointments:** Schedule and manage clinic appointments.
 - **Medical records:** Maintain clinical history and treatment information.
 - **Prescriptions and vaccinations:** Record relevant treatment and vaccination information.
-- **Surgery and laboratory:** Manage supported surgery and laboratory workflows.
+- **Surgery:** Manage supported surgery workflows.
 - **Pharmacy and inventory:** Maintain stock and pharmacy records.
 - **Boarding and grooming:** Manage these workflows if included.
 - **Billing:** Create and manage billing and payment records.

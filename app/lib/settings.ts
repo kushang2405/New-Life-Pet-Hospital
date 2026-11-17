@@ -40,7 +40,6 @@ export type ClinicSettings = {
   estimatePrefix: string;
   receiptPrefix: string;
   prescriptionPrefix: string;
-  labTestPrefix: string;
   surgeryPrefix: string;
   boardingPrefix: string;
   groomingPrefix: string;
@@ -103,7 +102,6 @@ export const defaultSettings: ClinicSettings = {
   estimatePrefix: 'EST-',
   receiptPrefix: 'RCP-',
   prescriptionPrefix: 'RX-',
-  labTestPrefix: 'LAB-',
   surgeryPrefix: 'SRG-',
   boardingPrefix: 'BRD-',
   groomingPrefix: 'GRM-',
@@ -356,7 +354,7 @@ export function lowStockThresholdOf(s: ClinicSettings): number {
 
 /** Document-number prefix for a given document kind. */
 export function prefixFor(
-  kind: 'invoice' | 'estimate' | 'receipt' | 'prescription' | 'labTest' | 'surgery' | 'boarding' | 'grooming',
+  kind: 'invoice' | 'estimate' | 'receipt' | 'prescription' | 'surgery' | 'boarding' | 'grooming',
   s: ClinicSettings,
 ): string {
   const map: Record<typeof kind, string> = {
@@ -364,7 +362,6 @@ export function prefixFor(
     estimate: s.estimatePrefix,
     receipt: s.receiptPrefix,
     prescription: s.prescriptionPrefix,
-    labTest: s.labTestPrefix,
     surgery: s.surgeryPrefix,
     boarding: s.boardingPrefix,
     grooming: s.groomingPrefix,

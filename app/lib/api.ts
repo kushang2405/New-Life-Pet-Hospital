@@ -26,7 +26,6 @@ export type DB = {
   vaccinations: Vaccination[];
   prescriptions: Prescription[];
   surgeries: Surgery[];
-  labTests: LabTest[];
   suppliers: Supplier[];
   purchases: Purchase[];
   pharmacySales: PharmacySale[];
@@ -205,7 +204,7 @@ export type MedRecord = {
   id: string;
   petId: string;
   date: string;
-  type: 'Consultation' | 'Vaccination' | 'Surgery' | 'Lab' | 'Prescription' | 'Imaging';
+  type: 'Consultation' | 'Vaccination' | 'Surgery' | 'Prescription' | 'Imaging';
   title: string;
   vet: string;
   findings: string;
@@ -349,7 +348,7 @@ export type Warehouse = {
 export type InventoryItem = {
   id: string;
   name: string;
-  category: 'Medicines' | 'Surgical equipment' | 'Pet food' | 'Accessories' | 'Cleaning supplies' | 'Laboratory equipment';
+  category: 'Medicines' | 'Surgical equipment' | 'Pet food' | 'Accessories' | 'Cleaning supplies';
   sku: string;
   barcode: string;
   unit: string;
@@ -414,7 +413,7 @@ export type InvoiceItem = {
   taxRate: number;
   discount: number;
   taxable: boolean;
-  category: 'Consultation' | 'Surgery' | 'Medication' | 'Lab' | 'Vaccination' | 'Grooming' | 'Boarding' | 'Product' | 'Other';
+  category: 'Consultation' | 'Surgery' | 'Medication' | 'Vaccination' | 'Grooming' | 'Boarding' | 'Product' | 'Other';
   reference: string;
   referenceId: string;
   cost: number;
@@ -861,8 +860,6 @@ export type CollectionType<C extends Collection> = C extends 'owners'
   ? Prescription
   : C extends 'surgeries'
   ? Surgery
-  : C extends 'labTests'
-  ? LabTest
   : C extends 'suppliers'
   ? Supplier
   : C extends 'purchases'
@@ -983,74 +980,6 @@ export type Surgery = {
   createdAt: string;
 };
 
-export type LabResultParameter = {
-  id: string;
-  name: string;
-  value: string;
-  unit: string;
-  refRange: string;
-  flag: 'Normal' | 'Low' | 'High' | 'Critical' | 'N/A';
-};
-
-export type SampleTrackingEntry = {
-  id: string;
-  stage: 'Collected' | 'Received' | 'In analysis' | 'Completed' | 'Rejected';
-  timestamp: string;
-  technician: string;
-  notes: string;
-};
-
-export type LabImage = {
-  id: string;
-  name: string;
-  url: string;
-  description: string;
-};
-
-export type LabTest = {
-  id: string;
-  testNumber: string;
-  petId: string;
-  ownerId: string;
-  medRecordId: string;
-  appointmentId: string;
-  invoiceId: string;
-  testType: 'Blood test' | 'Urine test' | 'Stool test' | 'Imaging';
-  testCategory: 'CBC' | 'Biochemistry' | 'Urinalysis' | 'Fecal' | 'Culture' | 'X-ray' | 'Ultrasound' | 'MRI' | 'CT scan' | 'Cytology' | 'Histopathology' | 'Other';
-  testName: string;
-  templateId: string;
-  requestedBy: string;
-  dateOrdered: string;
-  dateCompleted: string;
-  priority: 'Routine' | 'Urgent' | 'STAT';
-  status: 'Ordered' | 'Sample collected' | 'In analysis' | 'Completed' | 'Cancelled';
-  barcode: string;
-  sampleType: string;
-  sampleVolume: string;
-  collectionMethod: string;
-  collectedBy: string;
-  collectionDate: string;
-  storageCondition: string;
-  sampleTracking: SampleTrackingEntry[];
-  results: LabResultParameter[];
-  impression: string;
-  findings: string;
-  interpretation: string;
-  notes: string;
-  imagingRegion: string;
-  imagingModality: string;
-  contrastUsed: boolean;
-  imageCount: number;
-  images: LabImage[];
-  reportGenerated: boolean;
-  reportGeneratedDate: string;
-  digitallySigned: boolean;
-  signedBy: string;
-  signedDate: string;
-  signedRole: string;
-  cost: number;
-  createdAt: string;
-};
 
 /* ──────────────────────────────────────────────────────────────
    Marketing + public-website collections
@@ -1164,7 +1093,6 @@ export type Collection =
   | 'vaccinations'
   | 'prescriptions'
   | 'surgeries'
-  | 'labTests'
   | 'suppliers'
   | 'purchases'
   | 'pharmacySales'
@@ -1194,7 +1122,6 @@ const endpointMap: Record<Collection, string> = {
   vaccinations: 'vaccinations',
   prescriptions: 'prescriptions',
   surgeries: 'surgeries',
-  labTests: 'lab-tests',
   suppliers: 'suppliers',
   purchases: 'purchases',
   pharmacySales: 'pharmacy-sales',

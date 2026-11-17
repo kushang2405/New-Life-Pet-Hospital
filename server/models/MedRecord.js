@@ -13,7 +13,7 @@ const MedRecordSchema = new mongoose.Schema(
     date: { type: String, default: '' },
     type: {
       type: String,
-      enum: ['Consultation', 'Vaccination', 'Surgery', 'Lab', 'Prescription', 'Imaging'],
+      enum: ['Consultation', 'Vaccination', 'Surgery', 'Prescription', 'Imaging'],
       default: 'Consultation',
     },
     title: { type: String, default: '' },

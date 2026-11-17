@@ -114,7 +114,6 @@ const StaffSchema = new mongoose.Schema(
         'Veterinarian',
         'Receptionist',
         'Veterinary Nurse',
-        'Laboratory Technician',
         'Pharmacist',
         'Groomer',
         'Boarding Staff',

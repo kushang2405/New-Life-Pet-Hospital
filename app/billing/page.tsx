@@ -19,7 +19,7 @@ type Tab = 'invoices' | 'accounting';
 type DocFilter = 'all' | 'Invoice' | 'Estimate' | 'Credit Note' | 'Receipt' | 'Refund';
 
 const DOC_TYPES: Invoice['docType'][] = ['Invoice', 'Estimate', 'Receipt', 'Credit Note', 'Refund'];
-const ITEM_CATEGORIES: InvoiceItem['category'][] = ['Consultation', 'Surgery', 'Medication', 'Lab', 'Vaccination', 'Grooming', 'Boarding', 'Product', 'Other'];
+const ITEM_CATEGORIES: InvoiceItem['category'][] = ['Consultation', 'Surgery', 'Medication', 'Vaccination', 'Grooming', 'Boarding', 'Product', 'Other'];
 const PAYMENT_METHODS: Payment['method'][] = ['Cash', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon'];
 const EXPENSE_CATEGORIES: Expense['category'][] = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Equipment', 'Maintenance', 'Marketing', 'Insurance', 'Professional fees', 'Travel', 'Bank charges', 'Taxes', 'Other'];
 

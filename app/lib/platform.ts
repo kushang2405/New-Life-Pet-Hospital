@@ -13,7 +13,6 @@ import {
   Settings,
   FileText,
   Stethoscope as SurgeryIcon,
-  FlaskConical as LabIcon,
   BarChart3 as AnalyticsIcon,
   ClipboardList as ReportsIcon,
   Award as CertificateIcon,
@@ -58,7 +57,6 @@ export type Module =
   | 'appointments'
   | 'vaccinations'
   | 'surgeries'
-  | 'labTests'
   | 'pharmacy'
   | 'grooming'
   | 'boarding'
@@ -80,7 +78,7 @@ const viewAccess: Action[] = ['view'];
 
 const superAdminModules: Module[] = [
   'dashboard', 'patients', 'appointments', 'vaccinations',
-  'surgeries', 'labTests', 'pharmacy', 'grooming', 'boarding', 'billing', 'staff',
+  'surgeries', 'pharmacy', 'grooming', 'boarding', 'billing', 'staff',
   'settings', 'analytics', 'attendance', 'leaves', 'reports', 'certificates',
 ];
 
@@ -119,7 +117,6 @@ export const navItems: NavItem[] = [
   { href: '/appointments', label: 'Appointments', icon: CalendarDays, module: 'appointments' },
   { href: '/vaccinations', label: 'Vaccinations', icon: Syringe, module: 'vaccinations' },
   { href: '/surgeries', label: 'Surgery', icon: SurgeryIcon, module: 'surgeries' },
-  { href: '/lab', label: 'Laboratory', icon: LabIcon, module: 'labTests' },
   { href: '/pharmacy', label: 'Pharmacy', icon: Pill, module: 'pharmacy' },
   { href: '/grooming', label: 'Grooming', icon: Scissors, module: 'grooming' },
   { href: '/boarding', label: 'Boarding', icon: Hotel, module: 'boarding' },

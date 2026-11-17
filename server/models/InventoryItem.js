@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const InventoryCategory = {
   type: String,
-  enum: ['Medicines', 'Surgical equipment', 'Pet food', 'Accessories', 'Cleaning supplies', 'Laboratory equipment'],
+  enum: ['Medicines', 'Surgical equipment', 'Pet food', 'Accessories', 'Cleaning supplies'],
   default: 'Medicines',
 };
 

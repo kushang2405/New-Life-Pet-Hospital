@@ -676,12 +676,11 @@ export default function AnalyticsPage() {
               <option>Surgery</option>
               <option>Vaccination</option>
               <option>Medication</option>
-              <option>Lab</option>
               <option>Grooming</option>
               <option>Boarding</option>
               <option>Product</option>
               <option>Other</option>
-              {services.filter((s) => !['Consultation', 'Surgery', 'Vaccination', 'Medication', 'Lab', 'Grooming', 'Boarding', 'Product', 'Other'].includes(s)).map((s) => <option key={s}>{s}</option>)}
+              {services.filter((s) => !['Consultation', 'Surgery', 'Vaccination', 'Medication', 'Grooming', 'Boarding', 'Product', 'Other'].includes(s)).map((s) => <option key={s}>{s}</option>)}
             </Select>
           </div>
           <div>

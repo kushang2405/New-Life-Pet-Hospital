@@ -253,7 +253,6 @@ export default function SettingsPage() {
               { service: 'Pharmacy / Medication', rate: '8.5%', exempt: false },
               { service: 'Grooming', rate: '8.5%', exempt: false },
               { service: 'Boarding', rate: '12%', exempt: false },
-              { service: 'Laboratory tests', rate: '8.5%', exempt: false },
               { service: 'Product sales', rate: '8.5%', exempt: false },
             ].map((t) => (
               <div key={t.service} className="flex items-center gap-3 p-3 rounded-xl border border-line">

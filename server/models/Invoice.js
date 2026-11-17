@@ -8,7 +8,7 @@ const InvoiceItemSchema = new mongoose.Schema(
   taxRate: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },
   taxable: { type: Boolean, default: true },
-  category: { type: String, enum: ['Consultation', 'Surgery', 'Medication', 'Lab', 'Vaccination', 'Grooming', 'Boarding', 'Product', 'Other'], default: 'Other' },
+  category: { type: String, enum: ['Consultation', 'Surgery', 'Medication', 'Vaccination', 'Grooming', 'Boarding', 'Product', 'Other'], default: 'Other' },
   reference: { type: String, default: '' },
   referenceId: { type: String, default: '' },
   cost: { type: Number, default: 0 },

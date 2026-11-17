@@ -332,7 +332,7 @@ function DocumentsTab({ pet, onUpdate }: { pet: Pet; onUpdate: (patch: Partial<P
   };
 
   const docs = pet.documents || [];
-  const docTypes = ['Medical Report', 'Lab Result', 'Vaccination Certificate', 'Insurance', 'Pedigree Certificate', 'Other'];
+  const docTypes = ['Medical Report', 'Diagnostic Report', 'Vaccination Certificate', 'Insurance', 'Pedigree Certificate', 'Other'];
 
   return (
     <div className="space-y-4">

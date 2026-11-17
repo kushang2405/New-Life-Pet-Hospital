@@ -11,7 +11,6 @@ const Grooming = require('../models/Grooming');
 const Vaccination = require('../models/Vaccination');
 const Prescription = require('../models/Prescription');
 const Surgery = require('../models/Surgery');
-const LabTest = require('../models/LabTest');
 const Supplier = require('../models/Supplier');
 const Purchase = require('../models/Purchase');
 const PharmacySale = require('../models/PharmacySale');
@@ -48,7 +47,6 @@ const aggregate = asyncHandler(async (req, res) => {
     vaccinations,
     prescriptions,
     surgeries,
-    labTests,
     suppliers,
     purchases,
     pharmacySales,
@@ -77,7 +75,6 @@ const aggregate = asyncHandler(async (req, res) => {
     isStaff ? [] : Vaccination.find().lean(),
     isStaff ? [] : Prescription.find().lean(),
     isStaff ? [] : Surgery.find().lean(),
-    isStaff ? [] : LabTest.find().lean(),
     isStaff ? [] : Supplier.find().lean(),
     isStaff ? [] : Purchase.find().lean(),
     isStaff ? [] : PharmacySale.find().lean(),
@@ -108,7 +105,6 @@ const aggregate = asyncHandler(async (req, res) => {
     vaccinations: vaccinations.map(mapId),
     prescriptions: prescriptions.map(mapId),
     surgeries: surgeries.map(mapId),
-    labTests: labTests.map(mapId),
     suppliers: suppliers.map(mapId),
     purchases: purchases.map(mapId),
     pharmacySales: pharmacySales.map(mapId),

@@ -14,7 +14,7 @@ import { Card, Badge, Button, EmptyState, Modal, Field, Checkbox, Select, DateIn
 import { useDB, Appointment, newId, today } from '../lib/store';
 import { useAuth } from '../lib/auth';
 
-const services = ['Consultation', 'Vaccination', 'Surgery', 'Dental', 'Grooming', 'Lab', 'Boarding', 'Emergency', 'Walk-in', 'Follow-up', 'Other'];
+const services = ['Consultation', 'Vaccination', 'Surgery', 'Dental', 'Grooming', 'Boarding', 'Emergency', 'Walk-in', 'Follow-up', 'Other'];
 const statusFlow: Record<Appointment['status'], Appointment['status'] | null> = {
   'Scheduled': 'Checked-in',
   'Checked-in': 'In consultation',
