@@ -23,9 +23,31 @@ const minutesOf = (time) => {
 
 const punch = asyncHandler(async (req, res) => {
   const { type, date, time, latitude, longitude } = req.body;
-  if (!['in', 'out', 'break_start', 'break_end'].includes(type) || !DATE_RE.test(date || '') || !TIME_RE.test(time || '')) {
-    return res.status(400).json({ error: 'INVALID_PUNCH', message: 'Invalid punch request' });
+  if (!['in', 'out', 'break_start', 'break_end'].includes(type)) {
+    return res.status(400).json({ error: 'INVALID_PUNCH', message: 'Invalid punch request type.' });
   }
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const fallbackDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const fallbackTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  let targetDate = (typeof date === 'string' && date.trim()) || fallbackDate;
+  let targetTime = (typeof time === 'string' && time.trim()) || fallbackTime;
+
+  // Normalize time: if HH:MM:SS, extract HH:MM; if H:MM, pad hour
+  if (/^\d{1,2}:\d{2}/.test(targetTime)) {
+    const parts = targetTime.split(':');
+    targetTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+  } else {
+    targetTime = fallbackTime;
+  }
+
+  // Normalize date: if not YYYY-MM-DD, fallback
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    targetDate = fallbackDate;
+  }
+
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return res.status(400).json({ error: 'LOCATION_REQUIRED', message: 'Location is required for attendance' });
   }
@@ -38,14 +60,14 @@ const punch = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Staff member not found' });
   }
 
-  const record = staff.attendance.find((a) => a.date === date);
+  const record = staff.attendance.find((a) => a.date === targetDate);
 
   if (type === 'in') {
     if (record?.checkIn) {
       return res.status(409).json({ error: 'ALREADY_PUNCHED_IN', message: 'You have already punched in today.' });
     }
     if (record) {
-      record.checkIn = time;
+      record.checkIn = targetTime;
       record.status = 'Present';
       record.breakStart = '';
       record.breakEnd = '';
@@ -53,8 +75,8 @@ const punch = asyncHandler(async (req, res) => {
       record.isOnBreak = false;
     } else {
       staff.attendance.push({
-        date,
-        checkIn: time,
+        date: targetDate,
+        checkIn: targetTime,
         checkOut: '',
         status: 'Present',
         hoursWorked: 0,
@@ -78,7 +100,7 @@ const punch = asyncHandler(async (req, res) => {
     if (record.isOnBreak || record.breakStart) {
       return res.status(409).json({ error: 'ALREADY_ON_BREAK', message: 'You are already on break.' });
     }
-    record.breakStart = time;
+    record.breakStart = targetTime;
     record.isOnBreak = true;
   } else if (type === 'break_end') {
     if (!record?.checkIn) {
@@ -93,9 +115,9 @@ const punch = asyncHandler(async (req, res) => {
     if (record.breakEnd) {
       return res.status(409).json({ error: 'BREAK_ALREADY_COMPLETED', message: 'Your break has already ended and cannot be reopened.' });
     }
-    record.breakEnd = time;
+    record.breakEnd = targetTime;
     record.isOnBreak = false;
-    record.breakMinutes = Math.max(0, minutesOf(time) - minutesOf(record.breakStart));
+    record.breakMinutes = Math.max(0, minutesOf(targetTime) - minutesOf(record.breakStart));
   } else if (type === 'out') {
     if (!record?.checkIn) {
       return res.status(409).json({ error: 'NOT_PUNCHED_IN', message: 'You need to punch in before punching out.' });
@@ -105,12 +127,12 @@ const punch = asyncHandler(async (req, res) => {
     }
     // If still on break, auto-conclude the break at check-out time
     if (record.isOnBreak || (record.breakStart && !record.breakEnd)) {
-      record.breakEnd = time;
+      record.breakEnd = targetTime;
       record.isOnBreak = false;
-      record.breakMinutes = Math.max(0, minutesOf(time) - minutesOf(record.breakStart));
+      record.breakMinutes = Math.max(0, minutesOf(targetTime) - minutesOf(record.breakStart));
     }
-    record.checkOut = time;
-    const elapsed = Math.max(0, minutesOf(time) - minutesOf(record.checkIn));
+    record.checkOut = targetTime;
+    const elapsed = Math.max(0, minutesOf(targetTime) - minutesOf(record.checkIn));
     const breakMins = record.breakMinutes || 0;
     const worked = Math.max(0, elapsed - breakMins);
     record.hoursWorked = Math.round((worked / 60) * 100) / 100;

@@ -265,242 +265,227 @@ export default function AttendancePage() {
   // Staff view: punch in / out & break management
   return (
     <Shell title="Punch In / Out" subtitle="Mark your attendance and break time" module="attendance">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="space-y-5">
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-5 h-5 text-plum" />
-              <h2 className="text-base font-semibold text-ink">Today&apos;s Attendance</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock className="w-5 h-5 text-plum" />
+            <h2 className="text-base font-semibold text-ink">Today&apos;s Attendance</h2>
+          </div>
+          <p className="text-sm text-ink/50 mb-5">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+          <div className="flex flex-wrap gap-2 mb-5">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${punchedIn ? 'bg-lilac text-plum' : 'bg-canvas text-ink/50'}`}>
+              {punchedIn ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+              In: {todayRecord?.checkIn || '—'}
             </div>
-            <p className="text-sm text-ink/50 mb-5">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-
-            <div className="flex flex-wrap gap-2 mb-5">
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${punchedIn ? 'bg-lilac text-plum' : 'bg-canvas text-ink/50'}`}>
-                {punchedIn ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                In: {todayRecord?.checkIn || '—'}
-              </div>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${punchedOut ? 'bg-lilac text-plum' : 'bg-canvas text-ink/50'}`}>
-                {punchedOut ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                Out: {todayRecord?.checkOut || '—'}
-              </div>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                isOnBreak ? 'bg-amber-100 text-amber-800 animate-pulse' :
-                breakMinutes > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                'bg-canvas text-ink/50'
-              }`}>
-                <Coffee className="w-3.5 h-3.5" />
-                {isOnBreak ? `On Break (${todayRecord?.breakStart})` :
-                 breakMinutes > 0 ? `Break: ${formatMinutes(breakMinutes)}` :
-                 'Break: None'}
-              </div>
-              {todayRecord?.hoursWorked ? (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-100 text-sky-700">
-                  <Clock className="w-3.5 h-3.5" />
-                  {todayRecord.hoursWorked}h worked
-                </div>
-              ) : null}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${punchedOut ? 'bg-lilac text-plum' : 'bg-canvas text-ink/50'}`}>
+              {punchedOut ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+              Out: {todayRecord?.checkOut || '—'}
             </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+              isOnBreak ? 'bg-amber-100 text-amber-800 animate-pulse' :
+              breakMinutes > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+              'bg-canvas text-ink/50'
+            }`}>
+              <Coffee className="w-3.5 h-3.5" />
+              {isOnBreak ? `On Break (${todayRecord?.breakStart})` :
+               breakMinutes > 0 ? `Break: ${formatMinutes(breakMinutes)}` :
+               'Break: None'}
+            </div>
+            {todayRecord?.hoursWorked ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-100 text-sky-700">
+                <Clock className="w-3.5 h-3.5" />
+                {todayRecord.hoursWorked}h worked
+              </div>
+            ) : null}
+          </div>
 
-            {/* Break Management Section (Appears after Punch In, before Punch Out) */}
-            {punchedIn && !punchedOut && (
-              <div className="mb-5 p-4 rounded-xl border border-line bg-canvas/40">
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Coffee className="w-4 h-4 text-amber-600" />
-                    <h4 className="text-xs font-semibold text-ink uppercase tracking-wider">Break Management</h4>
-                  </div>
-                  <span className="text-[11px] text-ink/50">1 break per shift</span>
+          {/* Break Management Section (Appears after Punch In, before Punch Out) */}
+          {punchedIn && !punchedOut && (
+            <div className="mb-5 p-4 rounded-xl border border-line bg-canvas/40">
+              <div className="flex items-center justify-between mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Coffee className="w-4 h-4 text-amber-600" />
+                  <h4 className="text-xs font-semibold text-ink uppercase tracking-wider">Break Management</h4>
                 </div>
+                <span className="text-[11px] text-ink/50">1 break per shift</span>
+              </div>
 
-                {isOnBreak ? (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 space-y-3">
-                    <div className="flex items-start gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                        <Coffee className="w-4 h-4 animate-pulse" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-amber-900">Break in progress</p>
-                        <p className="text-xs text-amber-700">
-                          Started at <strong>{todayRecord?.breakStart}</strong>. Click below when you return to duty.
-                        </p>
-                      </div>
+              {isOnBreak ? (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                      <Coffee className="w-4 h-4 animate-pulse" />
                     </div>
-                    <Button
-                      size="md"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm border-none"
-                      disabled={busy || !atHospital}
-                      onClick={() => handlePunch('break_end')}
-                      icon={Play}
-                    >
-                      End Break & Resume Work
-                    </Button>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-amber-900">Break in progress</p>
+                      <p className="text-xs text-amber-700">
+                        Started at <strong>{todayRecord?.breakStart}</strong>. Click below when you return to duty.
+                      </p>
+                    </div>
                   </div>
-                ) : hasBreakEnded ? (
-                  <div className="rounded-xl border border-line bg-white p-3 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 text-ink/70">
-                      <CheckCircle2 className="w-4 h-4 text-plum shrink-0" />
-                      <span>
-                        Break completed: <strong>{formatMinutes(breakMinutes)}</strong>
-                        <span className="text-[11px] text-ink/40 ml-1.5">({todayRecord?.breakStart} → {todayRecord?.breakEnd})</span>
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-medium text-ink/40 bg-canvas px-2 py-0.5 rounded border border-line">
-                      Locked (1/1)
+                  <Button
+                    size="md"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm border-none"
+                    disabled={busy || !atHospital}
+                    onClick={() => handlePunch('break_end')}
+                    icon={Play}
+                  >
+                    End Break & Resume Work
+                  </Button>
+                </div>
+              ) : hasBreakEnded ? (
+                <div className="rounded-xl border border-line bg-white p-3 flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-ink/70">
+                    <CheckCircle2 className="w-4 h-4 text-plum shrink-0" />
+                    <span>
+                      Break completed: <strong>{formatMinutes(breakMinutes)}</strong>
+                      <span className="text-[11px] text-ink/40 ml-1.5">({todayRecord?.breakStart} → {todayRecord?.breakEnd})</span>
                     </span>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="text-xs font-medium text-ink">Take your break</p>
-                      <p className="text-[11px] text-ink/50">Only 1 break is permitted per shift. Once ended, it cannot be reopened.</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-medium border-none shadow-sm"
-                      disabled={busy || !atHospital}
-                      onClick={() => handlePunch('break_start')}
-                      icon={Coffee}
-                    >
-                      Start Break
-                    </Button>
+                  <span className="text-[10px] font-medium text-ink/40 bg-canvas px-2 py-0.5 rounded border border-line">
+                    Locked (1/1)
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-xs font-medium text-ink">Take your break</p>
+                    <p className="text-[11px] text-ink/50">Only 1 break is permitted per shift. Once ended, it cannot be reopened.</p>
                   </div>
-                )}
-              </div>
-            )}
-
-            <div className={`rounded-xl border p-4 mb-5 ${
-              locationStatus === 'granted' && atHospital ? 'bg-lilac/50 border-plum/20' :
-              locationStatus === 'granted' && !atHospital ? 'bg-amber-50 border-amber-200' :
-              locationStatus === 'denied' || locationStatus === 'unavailable' ? 'bg-coral/5 border-coral/20' :
-              'bg-canvas border-line'
-            }`}>
-              <div className="flex items-start gap-3">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                  locationStatus === 'granted' && atHospital ? 'bg-lilac text-plum' :
-                  locationStatus === 'granted' && !atHospital ? 'bg-amber-100 text-amber-700' :
-                  'bg-coral/15 text-coral'
-                }`}>
-                  <MapPin className="w-4.5 h-4.5" />
+                  <Button
+                    size="sm"
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-medium border-none shadow-sm"
+                    disabled={busy || !atHospital}
+                    onClick={() => handlePunch('break_start')}
+                    icon={Coffee}
+                  >
+                    Start Break
+                  </Button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  {locationStatus === 'loading' && (
-                    <p className="text-sm text-ink/60 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Detecting your location...</p>
-                  )}
-                  {locationStatus === 'granted' && atHospital && (
-                    <>
-                      <p className="text-sm font-medium text-plum">You are at the hospital</p>
-                      <p className="text-xs text-ink/50 mt-0.5">{distFromHospital}m from the hospital — you can punch in, out, or record breaks.</p>
-                    </>
-                  )}
-                  {locationStatus === 'granted' && !atHospital && (
-                    <>
-                      <p className="text-sm font-medium text-amber-700">You are not at the hospital</p>
-                      <p className="text-xs text-amber-700/80 mt-0.5">{distFromHospital}m from the hospital. You need to arrive at the hospital to punch in, out, or record breaks.</p>
-                    </>
-                  )}
-                  {locationStatus === 'denied' && (
-                    <>
-                      <p className="text-sm font-medium text-coral">Location access denied</p>
-                      <p className="text-xs text-ink/50 mt-0.5">Allow location access in your browser to verify you are at the hospital.</p>
-                    </>
-                  )}
-                  {locationStatus === 'unavailable' && (
-                    <>
-                      <p className="text-sm font-medium text-coral">Location unavailable</p>
-                      <p className="text-xs text-ink/50 mt-0.5">Your device does not support location detection.</p>
-                    </>
-                  )}
-                  {locationStatus === 'idle' && (
-                    <p className="text-sm text-ink/50">Waiting for location...</p>
-                  )}
-                </div>
-                {locationStatus !== 'loading' && (
-                  <Button variant="ghost" size="sm" onClick={requestLocation}>Retry</Button>
-                )}
-              </div>
+              )}
             </div>
+          )}
 
-            <div className="flex gap-3">
-              <Button
-                size="lg"
-                variant={punchedIn ? 'ghost' : 'primary'}
-                disabled={busy || !atHospital || punchedIn}
-                onClick={() => handlePunch('in')}
-                icon={LogIn}
-                full
-              >
-                {punchedIn ? 'Already punched in' : 'Punch In'}
-              </Button>
-              <Button
-                size="lg"
-                variant={punchedOut ? 'ghost' : 'soft'}
-                disabled={busy || !atHospital || !punchedIn || punchedOut || isOnBreak}
-                onClick={() => handlePunch('out')}
-                icon={LogOut}
-                full
-              >
-                {punchedOut ? 'Already punched out' : isOnBreak ? 'End break before punch out' : 'Punch Out'}
-              </Button>
-            </div>
-
-            {message && (
-              <div className={`mt-4 rounded-lg px-4 py-3 text-sm flex items-start gap-2 ${
-                message.type === 'success' ? 'bg-lilac/60 text-plum border border-plum/20' : 'bg-coral/10 text-coral border border-coral/20'
+          <div className={`rounded-xl border p-4 mb-5 ${
+            locationStatus === 'granted' && atHospital ? 'bg-lilac/50 border-plum/20' :
+            locationStatus === 'granted' && !atHospital ? 'bg-amber-50 border-amber-200' :
+            locationStatus === 'denied' || locationStatus === 'unavailable' ? 'bg-coral/5 border-coral/20' :
+            'bg-canvas border-line'
+          }`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                locationStatus === 'granted' && atHospital ? 'bg-lilac text-plum' :
+                locationStatus === 'granted' && !atHospital ? 'bg-amber-100 text-amber-700' :
+                'bg-coral/15 text-coral'
               }`}>
-                {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
-                <span>{message.text}</span>
-                <button onClick={() => setMessage(null)} className="ml-auto shrink-0"><X className="w-3.5 h-3.5" /></button>
+                <MapPin className="w-4.5 h-4.5" />
               </div>
-            )}
-          </Card>
-
-          <Card className="p-5">
-            <h3 className="text-sm font-semibold text-ink mb-3">Recent Attendance</h3>
-            {recentAttendance.length > 0 ? (
-              <div className="space-y-1.5">
-                {recentAttendance.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs py-2 px-3 rounded-lg bg-canvas/50">
-                    <span className="text-ink/70 font-medium">{a.date}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-ink/50">{a.checkIn || '—'} → {a.checkOut || '—'}</span>
-                      {a.breakMinutes ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-medium border border-amber-200/60">
-                          Break: {formatMinutes(a.breakMinutes)}
-                        </span>
-                      ) : null}
-                      <span className={`px-1.5 py-0.5 rounded font-medium ${
-                        a.status === 'Present' ? 'bg-lilac text-plum' :
-                        a.status === 'Late' ? 'bg-amber-100 text-amber-700' :
-                        a.status === 'Absent' ? 'bg-coral/10 text-coral' :
-                        a.status === 'On leave' ? 'bg-sky-100 text-sky-700' :
-                        'bg-line text-ink/60'
-                      }`}>{a.status}</span>
-                      <span className="text-ink/40 w-12 text-right">{a.hoursWorked ? `${a.hoursWorked}h` : ''}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex-1 min-w-0">
+                {locationStatus === 'loading' && (
+                  <p className="text-sm text-ink/60 flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Detecting your location...</p>
+                )}
+                {locationStatus === 'granted' && atHospital && (
+                  <>
+                    <p className="text-sm font-medium text-plum">You are at the hospital</p>
+                    <p className="text-xs text-ink/50 mt-0.5">{distFromHospital}m from the hospital — you can punch in, out, or record breaks.</p>
+                  </>
+                )}
+                {locationStatus === 'granted' && !atHospital && (
+                  <>
+                    <p className="text-sm font-medium text-amber-700">You are not at the hospital</p>
+                    <p className="text-xs text-amber-700/80 mt-0.5">{distFromHospital}m from the hospital. You need to arrive at the hospital to punch in, out, or record breaks.</p>
+                  </>
+                )}
+                {locationStatus === 'denied' && (
+                  <>
+                    <p className="text-sm font-medium text-coral">Location access denied</p>
+                    <p className="text-xs text-ink/50 mt-0.5">Allow location access in your browser to verify you are at the hospital.</p>
+                  </>
+                )}
+                {locationStatus === 'unavailable' && (
+                  <>
+                    <p className="text-sm font-medium text-coral">Location unavailable</p>
+                    <p className="text-xs text-ink/50 mt-0.5">Your device does not support location detection.</p>
+                  </>
+                )}
+                {locationStatus === 'idle' && (
+                  <p className="text-sm text-ink/50">Waiting for location...</p>
+                )}
               </div>
-            ) : (
-              <EmptyState icon={Clock} title="No attendance records yet" hint="Punch in to start recording your shifts." />
-            )}
-          </Card>
-        </div>
-
-        <Card className="p-0 overflow-hidden">
-          <div className="px-5 py-3 border-b border-line flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-coral" />
-            <h3 className="text-sm font-semibold text-ink">Hospital Location</h3>
+              {locationStatus !== 'loading' && (
+                <Button variant="ghost" size="sm" onClick={requestLocation}>Retry</Button>
+              )}
+            </div>
           </div>
-          <iframe
-            src="https://www.google.com/maps/embed?pb=!1m17!1m12!1m3!1d3720.9895543323564!2d72.83103907635667!3d21.15281398350394!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m2!1m1!2zMjHCsDA5JzEwLjEiTiA3MsKwNTAnMDEuMCJF!5e0!3m2!1sen!2sin!4v1793790421365!5m2!1sen!2sin"
-            width="100%"
-            height="400"
-            style={{ border: 0 }}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            title="Hospital location"
-          />
+
+          <div className="flex gap-3">
+            <Button
+              size="lg"
+              variant={punchedIn ? 'ghost' : 'primary'}
+              disabled={busy || !atHospital || punchedIn}
+              onClick={() => handlePunch('in')}
+              icon={LogIn}
+              full
+            >
+              {punchedIn ? 'Already punched in' : 'Punch In'}
+            </Button>
+            <Button
+              size="lg"
+              variant={punchedOut ? 'ghost' : 'soft'}
+              disabled={busy || !atHospital || !punchedIn || punchedOut || isOnBreak}
+              onClick={() => handlePunch('out')}
+              icon={LogOut}
+              full
+            >
+              {punchedOut ? 'Already punched out' : isOnBreak ? 'End break before punch out' : 'Punch Out'}
+            </Button>
+          </div>
+
+          {message && (
+            <div className={`mt-4 rounded-lg px-4 py-3 text-sm flex items-start gap-2 ${
+              message.type === 'success' ? 'bg-lilac/60 text-plum border border-plum/20' : 'bg-coral/10 text-coral border border-coral/20'
+            }`}>
+              {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
+              <span>{message.text}</span>
+              <button onClick={() => setMessage(null)} className="ml-auto shrink-0"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          )}
+        </Card>
+
+        {/* Recent Attendance positioned directly in the right column */}
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="w-4 h-4 text-plum" />
+            <h3 className="text-sm font-semibold text-ink">Recent Attendance</h3>
+          </div>
+          {recentAttendance.length > 0 ? (
+            <div className="space-y-1.5">
+              {recentAttendance.map((a, i) => (
+                <div key={i} className="flex items-center justify-between text-xs py-2 px-3 rounded-lg bg-canvas/50">
+                  <span className="text-ink/70 font-medium">{a.date}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-ink/50">{a.checkIn || '—'} → {a.checkOut || '—'}</span>
+                    {a.breakMinutes ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-medium border border-amber-200/60">
+                        Break: {formatMinutes(a.breakMinutes)}
+                      </span>
+                    ) : null}
+                    <span className={`px-1.5 py-0.5 rounded font-medium ${
+                      a.status === 'Present' ? 'bg-lilac text-plum' :
+                      a.status === 'Late' ? 'bg-amber-100 text-amber-700' :
+                      a.status === 'Absent' ? 'bg-coral/10 text-coral' :
+                      a.status === 'On leave' ? 'bg-sky-100 text-sky-700' :
+                      'bg-line text-ink/60'
+                    }`}>{a.status}</span>
+                    <span className="text-ink/40 w-12 text-right">{a.hoursWorked ? `${a.hoursWorked}h` : ''}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={Clock} title="No attendance records yet" hint="Punch in to start recording your shifts." />
+          )}
         </Card>
       </div>
     </Shell>
