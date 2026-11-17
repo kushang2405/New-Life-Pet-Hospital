@@ -4,9 +4,8 @@ const { jsPDF } = require('jspdf');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const bannerPath = path.join(__dirname, '../public/images/report-header-banner.jpg');
-const banner = fs.readFileSync(bannerPath);
-const DEFAULT_BANNER = 'data:image/jpeg;base64,' + banner.toString('base64');
+const logoData = fs.readFileSync('C:/Users/KUSHANG TANAWALA/.gemini/antigravity/brain/1371a0fa-2e21-49d8-8287-e48eeed407cd/sweety_logo.png');
+const DEFAULT_LOGO = 'data:image/jpeg;base64,' + logoData.toString('base64');
 
 const CBC_REFERENCE_RANGES = {
   haemoglobin: '11.0-19.0',
@@ -78,22 +77,45 @@ function formatApprovedDate(dateStr) {
   return dateStr;
 }
 
+function formatRefBy(ref) {
+  if (!ref || !ref.trim()) return 'Dr.ARSHI VALA (M.V.Sc)';
+  const cleaned = ref.trim();
+  if (/Dr\.?\s*ARSHI\s*VALA/i.test(cleaned)) {
+    return 'Dr.ARSHI VALA (M.V.Sc)';
+  }
+  if (cleaned.includes('M.V.Sc') && !cleaned.includes('(M.V.Sc)')) {
+    return cleaned.replace('M.V.Sc', '(M.V.Sc)');
+  }
+  return cleaned;
+}
+
+function formatDoctorName(name) {
+  const d = (name || 'Dr. Arshi K. Vala').trim();
+  if (/^Dr\.?\s+/i.test(d)) return d;
+  return 'Dr. ' + d;
+}
+
 function generatePdf(r) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const logo = r.logoData || DEFAULT_BANNER;
-  const format = logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-  const { width, height } = doc.getImageProperties(logo);
-  const aspect = width / height;
-  let bannerHeight = 80;
-  if (aspect >= 2.2) {
-    bannerHeight = Math.min(115, 516 / aspect);
-    doc.addImage(logo, format, 38, 18, 516, bannerHeight);
-  } else {
-    bannerHeight = 65;
-    doc.addImage(logo, format, 38, 18, Math.min(220, bannerHeight * aspect), bannerHeight);
+  const logo = r.logoData || DEFAULT_LOGO;
+  const logoTop = 20;
+  let logoBottom = logoTop;
+  try {
+    const format = logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+    const { width, height } = doc.getImageProperties(logo);
+    const aspect = width / height;
+    const logoMaxH = 72;
+    const logoW = Math.min(105, logoMaxH * aspect);
+    const logoH = logoW / aspect;
+    doc.addImage(logo, format, 38, logoTop, logoW, logoH);
+    logoBottom = logoTop + logoH;
+  } catch {
+    logoBottom = logoTop + 40;
   }
 
-  const startY = 18 + bannerHeight + 14;
+  const detailsTop = 22;
+  const rowH = 18;
+
   const pet = r.petSnapshot || {};
   const petUpper = (pet.name || 'PATIENT').trim().toUpperCase();
   const isFemale = (pet.gender || '').toLowerCase().includes('female');
@@ -104,74 +126,107 @@ function generatePdf(r) {
       : prefix + ' ' + petUpper;
 
   const pDetails = r.patientDetails || {};
-  const ageVal = pDetails.ageGender || pet.birthDate || pet.gender || '—';
-  const refVal = pDetails.referredBy || 'Dr.ARSHI VALA M.V.Sc';
-  const branchVal =
-    pDetails.sampleType && pDetails.sampleType.toLowerCase().includes('branch')
-      ? pDetails.sampleType
-      : 'Main Branch';
-  const patIdVal =
-    pDetails.sampleNo || pDetails.uhid || (pet.id ? String(pet.id).slice(-8) : '202609033');
-  const dVal = formatSlashDate(pDetails.date);
+  const ageVal =
+    (pDetails.ageGender && pDetails.ageGender.includes('/')
+      ? pDetails.ageGender.split('/')[0].trim()
+      : pDetails.ageGender) ||
+    pet.birthDate ||
+    '—';
 
-  const leftCol = [
-    { label: 'Collected by', val: branchVal, bold: false },
-    { label: "Patient's Name", val: petFormatted, bold: true },
-    { label: 'Age / Gender', val: ageVal, bold: false },
-    { label: 'Ref. By', val: refVal, bold: false },
-  ];
-  const rightCol = [
-    { label: 'Patient ID', val: patIdVal },
-    { label: 'Collection Date', val: dVal },
-    { label: 'Received Date', val: dVal },
-    { label: 'Reporting Date', val: dVal },
+  let rawGender =
+    pet.gender ||
+    pDetails.gender ||
+    (pDetails.ageGender && pDetails.ageGender.includes('/')
+      ? pDetails.ageGender.split('/')[1].trim()
+      : '');
+  if (!rawGender && isFemale) rawGender = 'Female';
+  const genderVal = rawGender
+    ? rawGender.charAt(0).toUpperCase() + rawGender.slice(1).toLowerCase()
+    : '—';
+
+  const owner = r.ownerSnapshot || {};
+  const ownerNameVal = owner.name ? owner.name.trim() : '—';
+  const dateVal = formatSlashDate(pDetails.date);
+  const refByVal = formatRefBy(pDetails.referredBy);
+
+  const col1LabelX = 160;
+  const col1ColonX = 232;
+  const col1ValX = 240;
+
+  const col2LabelX = 365;
+  const col2ColonX = 415;
+  const col2ValX = 422;
+
+  const detailsRows = [
+    {
+      c1Label: "Patient's Name", c1Val: petFormatted, c1Bold: true,
+      c2Label: 'Date', c2Val: dateVal, c2Bold: false,
+    },
+    {
+      c1Label: 'Owner Name', c1Val: ownerNameVal, c1Bold: false,
+      c2Label: 'Gender', c2Val: genderVal, c2Bold: false,
+    },
+    {
+      c1Label: 'Age', c1Val: ageVal, c1Bold: false,
+      c2Label: 'Ref. By', c2Val: refByVal, c2Bold: false,
+    },
   ];
 
-  for (let i = 0; i < 4; i++) {
-    const y = startY + i * 16;
+  detailsRows.forEach((row, idx) => {
+    const y = detailsTop + idx * rowH;
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(25, 25, 25);
-    doc.text(leftCol[i].label, 44, y);
-    doc.text(':', 118, y);
-    if (leftCol[i].bold) {
+    doc.text(row.c1Label, col1LabelX, y);
+    doc.text(':', col1ColonX, y);
+    if (row.c1Bold) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
     } else {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
     }
-    doc.text(leftCol[i].val, 126, y);
+    doc.text(row.c1Val, col1ValX, y);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
-    doc.text(rightCol[i].label, 355, y);
-    doc.text(':', 432, y);
-    doc.text(rightCol[i].val, 442, y);
-  }
+    doc.setTextColor(25, 25, 25);
+    doc.text(row.c2Label, col2LabelX, y);
+    doc.text(':', col2ColonX, y);
+    doc.text(row.c2Val, col2ValX, y);
+  });
 
-  const tableTop = startY + 4 * 16 + 20;
+  const headerBottom = Math.max(logoBottom, detailsTop + 3 * rowH) + 12;
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
+  doc.line(38, headerBottom, 554, headerBottom);
+
+  const tableTop = headerBottom + 16;
   const isCbc = r.reportType === 'CBC';
-  doc.setFillColor(236, 236, 236);
-  doc.rect(38, tableTop - 13, 516, 20, 'F');
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text(r.reportType || 'CBC', 296, tableTop, { align: 'center' });
+
+  doc.setFillColor(236, 236, 236);
+  doc.rect(38, tableTop + 6, 516, 20, 'F');
   doc.setFontSize(7.5);
   doc.setTextColor(25, 25, 25);
   const cols = [38, 190, 276, 350, 456];
   if (isCbc) {
     ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE'].forEach((lbl, idx) =>
-      doc.text(lbl, cols[idx] + 3, tableTop)
+      doc.text(lbl, cols[idx] + 3, tableTop + 19)
     );
   } else {
     ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'].forEach((lbl, idx) =>
-      doc.text(lbl, cols[idx] + 3, tableTop)
+      doc.text(lbl, cols[idx] + 3, tableTop + 19)
     );
   }
 
-  let curY = tableTop + 20;
+  let curY = tableTop + 34;
   const analytes = r.analytes || [];
   analytes.forEach((a) => {
-    if (curY > 740) {
+    if (curY > 670) {
       doc.addPage();
       curY = 40;
     }
@@ -193,17 +248,13 @@ function generatePdf(r) {
   });
 
   doc.setDrawColor(150, 150, 150);
-  doc.line(420, 762, 554, 762);
+  doc.line(420, 725, 554, 725);
   doc.setTextColor(25, 25, 25);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(
-    pDetails.doctorName ? 'Dr. ' + pDetails.doctorName : 'Dr. Arshi K. Vala',
-    420,
-    778
-  );
+  doc.text(formatDoctorName(pDetails.doctorName), 420, 739);
   doc.setFont('helvetica', 'normal');
-  doc.text(pDetails.doctorPosition || 'M.V.Sc (SURGERY & RADIOLOGY)', 420, 792);
+  doc.text(pDetails.doctorPosition || 'M.V.Sc (SURGERY & RADIOLOGY)', 420, 752);
   doc.setFontSize(7.5);
   doc.setTextColor(60, 60, 60);
   doc.setFont('helvetica', 'bold');
@@ -211,7 +262,7 @@ function generatePdf(r) {
     '** This is an Electronically Approved Report.   **Report Approved on : ' +
       formatApprovedDate(pDetails.date),
     38,
-    805
+    766
   );
 
   const b64 = Buffer.from(doc.output('arraybuffer')).toString('base64');
@@ -222,11 +273,11 @@ async function run() {
   await mongoose.connect(process.env.MONGODB_URI, { dbName: 'petcare_pro' });
   const col = mongoose.connection.collection('diagnosticreports');
   const reports = await col.find().toArray();
-  console.log(`Found ${reports.length} report(s) in database to update...`);
+  console.log(`Found ${reports.length} report(s) to update...`);
   for (const rep of reports) {
     const updatedPdf = generatePdf(rep);
     await col.updateOne({ _id: rep._id }, { $set: { pdfData: updatedPdf } });
-    console.log(`Migrated report "${rep.title}" (${rep._id}) -> PDF length: ${updatedPdf.length}`);
+    console.log(`Updated report "${rep.title}" (${rep._id})`);
   }
   console.log('Migration complete!');
   process.exit(0);
