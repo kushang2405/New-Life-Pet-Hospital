@@ -26,8 +26,8 @@ function formatMinutes(mins: number): string {
 }
 
 export default function AttendancePage() {
-  const { user } = useAuth();
-  const { db, update } = useDB();
+  const { user, loading } = useAuth();
+  const { db, update, refresh } = useDB();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
@@ -64,8 +64,11 @@ export default function AttendancePage() {
   }, []);
 
   useEffect(() => {
-    if (!isSuperAdmin) requestLocation();
-  }, [requestLocation, isSuperAdmin]);
+    // Only request location for staff members who need to punch in/out
+    // Super Admins only view attendance reports and should NEVER be prompted for location
+    if (loading || isSuperAdmin || !user) return;
+    requestLocation();
+  }, [requestLocation, loading, isSuperAdmin, user]);
 
   const distFromHospital = location
     ? Math.round(distanceMeters(location.lat, location.lon, HOSPITAL_LOCATION.latitude, HOSPITAL_LOCATION.longitude))
@@ -126,9 +129,10 @@ export default function AttendancePage() {
   const presentCount = dayRecords.filter((r) => r.status === 'Present' || r.status === 'Late').length;
   const lateCount = dayRecords.filter((r) => r.status === 'Late').length;
   const absentCount = dayRecords.filter((r) => r.status === 'Absent' || r.status === 'No record').length;
+  const onBreakCount = dayRecords.filter((r) => r.isOnBreak).length;
   const totalBreakMinutes = dayRecords.reduce((sum, r) => sum + (r.breakMinutes || 0), 0);
 
-  if (!db) return <Shell title="Attendance"><div className="text-sm text-ink/50">Loading...</div></Shell>;
+  if (loading || !db) return <Shell title="Attendance"><div className="text-sm text-ink/50">Loading...</div></Shell>;
 
   // Super Admin view
   if (isSuperAdmin) {
@@ -138,7 +142,13 @@ export default function AttendancePage() {
           <StatCard icon={CheckCircle2} label="Present" value={String(presentCount)} tone="plum" />
           <StatCard icon={Clock} label="Late" value={String(lateCount)} tone="amber" />
           <StatCard icon={AlertTriangle} label="Absent" value={String(absentCount)} tone="coral" />
-          <StatCard icon={Coffee} label="Total Break Time" value={formatMinutes(totalBreakMinutes)} tone="amber" />
+          <StatCard
+            icon={Coffee}
+            label="Total Break Time"
+            value={formatMinutes(totalBreakMinutes)}
+            sub={onBreakCount > 0 ? `${onBreakCount} staff on break now` : 'All breaks completed'}
+            tone="amber"
+          />
           <StatCard icon={Clock} label="Total staff" value={String(db.staff.length)} tone="sky" />
         </div>
 
@@ -153,6 +163,7 @@ export default function AttendancePage() {
                 className="w-40"
               />
               <Button variant="ghost" size="sm" onClick={() => setFilterDate(localDate())}>Today</Button>
+              <Button variant="ghost" size="sm" onClick={() => refresh()}>Refresh</Button>
             </div>
           </div>
 
@@ -182,13 +193,13 @@ export default function AttendancePage() {
                     <td className="py-2.5 px-3 text-ink/70">{r.checkOut}</td>
                     <td className="py-2.5 px-3">
                       {r.isOnBreak ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 animate-pulse">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 animate-pulse border border-amber-300">
                           <Coffee className="w-3 h-3" /> On break ({r.breakStart})
                         </span>
-                      ) : r.breakMinutes > 0 ? (
+                      ) : r.breakStart ? (
                         <div className="text-xs">
                           <span className="font-semibold text-ink/80">{formatMinutes(r.breakMinutes)}</span>
-                          <span className="text-[11px] text-ink/40 ml-1">({r.breakStart} - {r.breakEnd})</span>
+                          <span className="text-[11px] text-ink/40 ml-1">({r.breakStart} → {r.breakEnd || '—'})</span>
                         </div>
                       ) : (
                         <span className="text-ink/30">—</span>
@@ -197,12 +208,13 @@ export default function AttendancePage() {
                     <td className="py-2.5 px-3 text-ink/70 font-medium">{r.hoursWorked ? `${r.hoursWorked}h` : '—'}</td>
                     <td className="py-2.5 px-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded font-medium ${
+                        r.isOnBreak ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                         r.status === 'Present' ? 'bg-lilac text-plum' :
                         r.status === 'Late' ? 'bg-amber-100 text-amber-700' :
                         r.status === 'Absent' || r.status === 'No record' ? 'bg-coral/10 text-coral' :
                         r.status === 'On leave' ? 'bg-sky-100 text-sky-700' :
                         'bg-line text-ink/60'
-                      }`}>{r.status}</span>
+                      }`}>{r.isOnBreak ? 'On break' : r.status}</span>
                     </td>
                   </tr>
                 ))}
@@ -242,13 +254,13 @@ export default function AttendancePage() {
                 <div className="bg-white/80 p-2 rounded-lg border border-line/60 text-xs">
                   <span className="text-ink/40 text-[10px] block uppercase font-medium mb-0.5">Break Taken</span>
                   {r.isOnBreak ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 animate-pulse">
+                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 animate-pulse border border-amber-300">
                       <Coffee className="w-3 h-3" /> Currently on break (since {r.breakStart})
                     </span>
-                  ) : r.breakMinutes > 0 ? (
+                  ) : r.breakStart ? (
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-ink/80">{formatMinutes(r.breakMinutes)}</span>
-                      <span className="text-[11px] text-ink/50">{r.breakStart} → {r.breakEnd}</span>
+                      <span className="text-[11px] text-ink/50">{r.breakStart} → {r.breakEnd || '—'}</span>
                     </div>
                   ) : (
                     <span className="text-ink/40">No break recorded</span>
