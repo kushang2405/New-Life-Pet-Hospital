@@ -1041,20 +1041,22 @@ export default function PharmacyPage() {
                         {m.batches && m.batches.length > 0 && (
                           <div className="rounded-lg border border-line bg-white p-3">
                             <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide mb-2">Batch Tracking</div>
-                            <table className="w-full text-xs">
-                              <thead><tr className="text-ink/40 text-[10px]"><th className="text-left py-1">Batch No</th><th className="text-right">Qty</th><th className="text-left pl-3">Expiry</th><th className="text-left pl-3">Received</th><th className="text-right">Cost/unit</th></tr></thead>
-                              <tbody>
-                                {m.batches.map((b, i) => (
-                                  <tr key={b.id || `${b.batchNumber}-${i}`} className="border-t border-line/50">
-                                    <td className="py-1 text-ink/70 font-medium">{b.batchNumber}</td>
-                                    <td className="text-right text-ink/70">{numMin(b.quantity, 0)} {m.unit}</td>
-                                    <td className="text-left pl-3 text-ink/50">{b.expiry || '—'}</td>
-                                    <td className="text-left pl-3 text-ink/50">{b.receivedDate || '—'}</td>
-                                    <td className="text-right text-ink/70">{money(num(b.costPerUnit))}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead><tr className="text-ink/40 text-[10px]"><th className="text-left py-1">Batch No</th><th className="text-right">Qty</th><th className="text-left pl-3">Expiry</th><th className="text-left pl-3">Received</th><th className="text-right">Cost/unit</th></tr></thead>
+                                <tbody>
+                                  {m.batches.map((b, i) => (
+                                    <tr key={b.id || `${b.batchNumber}-${i}`} className="border-t border-line/50">
+                                      <td className="py-1 text-ink/70 font-medium">{b.batchNumber}</td>
+                                      <td className="text-right text-ink/70">{numMin(b.quantity, 0)} {m.unit}</td>
+                                      <td className="text-left pl-3 text-ink/50">{b.expiry || '—'}</td>
+                                      <td className="text-left pl-3 text-ink/50">{b.receivedDate || '—'}</td>
+                                      <td className="text-right text-ink/70">{money(num(b.costPerUnit))}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                             <div className="flex justify-end mt-2 text-[11px] text-ink/50">
                               Batch total: <span className="font-semibold text-ink ml-1">{batchSum(m.batches)} {m.unit}</span>
                             </div>
@@ -1493,7 +1495,59 @@ export default function PharmacyPage() {
             <Card><EmptyState icon={Receipt} title="No pharmacy sales" hint="Completed sales and dispensing records will appear here." /></Card>
           ) : (
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile Cards View (< md) */}
+              <div className="md:hidden divide-y divide-line">
+                {db.pharmacySales.map((s) => (
+                  <div key={s.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-sm text-ink font-mono">{s.saleNumber}</div>
+                        <div className="text-xs text-ink/50 mt-0.5">{s.date}</div>
+                      </div>
+                      <Badge status={s.status} />
+                    </div>
+
+                    <div className="text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50">
+                      <span className="text-ink/40 text-[10px] block uppercase font-medium">Customer</span>
+                      <span className="font-semibold text-ink text-xs">{s.customerName}</span>
+                      {s.petName && <span className="text-ink/50 ml-1">({s.petName})</span>}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
+                        <span className="text-ink/40 text-[10px] block uppercase font-medium">Items</span>
+                        <span className="font-medium text-ink/80">{s.items.length} items</span>
+                      </div>
+                      <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
+                        <span className="text-ink/40 text-[10px] block uppercase font-medium">Payment</span>
+                        <span className="font-medium text-ink/80">{s.paymentMethod || '—'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                      <span className="text-[10px] text-ink/50 uppercase font-medium">Total</span>
+                      <span className="text-base font-bold text-ink">{money(num(s.total))}</span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-1">
+                      {s.status === 'Completed' && (
+                        <Button size="sm" variant="soft" onClick={() => refundSale(s)} className="text-xs text-amber-700 bg-amber-50 hover:bg-amber-100">
+                          <RotateCcw className="w-3.5 h-3.5 mr-1" /> Refund
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => openEditSale(s)} className="text-xs text-ink/70">
+                        <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <button onClick={() => deleteSale(s)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View (>= md) */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[11px] text-ink/50 uppercase tracking-wide border-b border-line">

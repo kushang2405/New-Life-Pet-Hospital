@@ -498,7 +498,78 @@ export default function BillingPage() {
             <Card><EmptyState icon={Receipt} title="No documents yet" hint="Create an invoice or estimate to get started" /></Card>
           ) : (
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile Cards View (< md) */}
+              <div className="md:hidden divide-y divide-line">
+                {filteredInvoices.map((i) => {
+                  const t = invoiceTotals(i);
+                  return (
+                    <div key={i.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <button onClick={() => setDetailInvId(i.id)} className="font-semibold text-sm text-ink hover:text-plum text-left flex items-center gap-2">
+                            <span>{i.number}</span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                              i.docType === 'Invoice' ? 'bg-sky-50 text-sky-700' :
+                              i.docType === 'Estimate' ? 'bg-violet-50 text-violet-700' :
+                              i.docType === 'Credit Note' ? 'bg-amber-50 text-amber-700' :
+                              'bg-ink/5 text-ink/60'
+                            }`}>{i.docType}</span>
+                          </button>
+                          <div className="text-xs text-ink/50 mt-1">{fmtDate(i.date)}</div>
+                        </div>
+                        <Badge status={i.status} />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-canvas/50 p-2 rounded-lg border border-line/50">
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Client</span>
+                          <span className="font-medium text-ink/80 truncate block">{ownerName(i.ownerId)}</span>
+                        </div>
+                        <div className="bg-canvas/50 p-2 rounded-lg border border-line/50">
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Pet</span>
+                          <span className="font-medium text-ink/80 truncate block">{petName(i.petId)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                        <div>
+                          <span className="text-[10px] text-ink/40 uppercase block font-medium">Total</span>
+                          <span className="text-sm font-bold text-ink">{fmt(t.total)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-ink/40 uppercase block font-medium">Paid</span>
+                          <span className="text-xs font-semibold text-ink/70">{fmt(t.amountPaid)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                        <Button size="sm" variant="outline" onClick={() => setDetailInvId(i.id)} className="text-xs text-ink/70">
+                          <Eye className="w-3.5 h-3.5 mr-1" /> View
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openEditInvoice(i)} className="text-xs text-ink/70">
+                          <FileText className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        {i.docType === 'Estimate' && i.status !== 'Converted' && (
+                          <Button size="sm" variant="soft" onClick={() => convertEstimate(i.id)} className="text-xs text-plum">
+                            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Convert
+                          </Button>
+                        )}
+                        {(i.status === 'Pending' || i.status === 'Overdue' || i.status === 'Partial' || i.status === 'Sent') && (
+                          <Button size="sm" variant="soft" onClick={() => openPayModal(i)} className="text-xs text-plum">
+                            <DollarSign className="w-3.5 h-3.5 mr-1" /> Pay
+                          </Button>
+                        )}
+                        <button onClick={() => deleteInvoice(i)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View (>= md) */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[11px] text-ink/50 uppercase tracking-wide border-b border-line">
@@ -635,7 +706,55 @@ export default function BillingPage() {
             <Card><EmptyState icon={Wallet} title="No expenses recorded" hint="Add expenses to track your profit & loss" /></Card>
           ) : (
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile Cards View (< md) */}
+              <div className="md:hidden divide-y divide-line">
+                {db.expenses.map((e) => (
+                  <div key={e.id} className="p-4 space-y-3 cursor-pointer hover:bg-canvas/40" onClick={() => setDetailExpId(e.id)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-semibold text-sm text-ink flex items-center gap-2">
+                          <span>{e.number}</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-ink/5 text-ink/60">{e.category}</span>
+                        </div>
+                        <div className="text-xs text-ink/50 mt-1">{fmtDate(e.date)}</div>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                        e.status === 'Paid' ? 'bg-lilac text-plum' :
+                        e.status === 'Pending' ? 'bg-amber-50 text-amber-700' :
+                        'bg-sky-50 text-sky-700'
+                      }`}>{e.status}</span>
+                    </div>
+
+                    <div className="text-xs text-ink/80 font-medium bg-canvas/40 p-2.5 rounded-lg border border-line/50">
+                      {e.description || '—'}
+                      {e.vendor && <div className="text-[11px] text-ink/50 mt-0.5">Vendor: {e.vendor}</div>}
+                    </div>
+
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                      <div>
+                        <span className="text-[10px] text-ink/40 uppercase block font-medium">Amount / Tax</span>
+                        <span className="text-xs text-ink/70">{fmt(e.amount)} {num(e.tax) > 0 && `(+ ${fmt(e.tax)} tax)`}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-ink/40 uppercase block font-medium">Total</span>
+                        <span className="text-sm font-bold text-ink">{fmt(e.total)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-1" onClick={(ev) => ev.stopPropagation()}>
+                      <Button size="sm" variant="outline" onClick={() => openEditExpense(e)} className="text-xs text-ink/70">
+                        <FileText className="w-3.5 h-3.5 mr-1" /> Edit
+                      </Button>
+                      <button onClick={() => deleteExpense(e)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View (>= md) */}
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[11px] text-ink/50 uppercase tracking-wide border-b border-line">

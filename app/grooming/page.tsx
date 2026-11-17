@@ -668,60 +668,114 @@ export default function GroomingPage() {
             {historyFiltered.length === 0 ? (
               <EmptyState icon={History} title="No history records" hint="Completed, cancelled and past appointments appear here." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-line">
-                      <th className="py-2.5 pr-4 font-semibold">Appt #</th>
-                      <th className="py-2.5 pr-4 font-semibold">Date</th>
-                      <th className="py-2.5 pr-4 font-semibold">Pet</th>
-                      <th className="py-2.5 pr-4 font-semibold">Owner</th>
-                      <th className="py-2.5 pr-4 font-semibold">Groomer</th>
-                      <th className="py-2.5 pr-4 font-semibold">Services</th>
-                      <th className="py-2.5 pr-4 font-semibold">Status</th>
-                      <th className="py-2.5 pr-4 font-semibold text-right">Total</th>
-                      <th className="py-2.5 pr-4 font-semibold">Rating</th>
-                      <th className="py-2.5 pr-2 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyFiltered.map((g) => (
-                      <tr key={g.id} className="border-b border-line/60 hover:bg-canvas/50 transition-colors">
-                        <td className="py-3 pr-4 font-mono text-xs text-ink/70">{g.appointmentNumber || '—'}</td>
-                        <td className="py-3 pr-4 text-ink/60">{fmtDate(g.date)}</td>
-                        <td className="py-3 pr-4 font-medium text-ink">{g.petName}</td>
-                        <td className="py-3 pr-4 text-ink/60">{g.owner}</td>
-                        <td className="py-3 pr-4 text-ink/60">{g.groomer}</td>
-                        <td className="py-3 pr-4">
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {(g.services || []).map((s) => (
-                              <span key={s.id || s.name} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-lilac text-plum">{s.name}</span>
-                            ))}
+              <>
+                {/* Mobile Cards View (< md) */}
+                <div className="md:hidden space-y-3">
+                  {historyFiltered.map((g) => (
+                    <div key={g.id} className="p-3.5 rounded-xl border border-line bg-canvas/40 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-sm text-ink flex items-center gap-2">
+                            <span>{g.petName}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-line text-ink/70 font-mono">{g.appointmentNumber || '—'}</span>
                           </div>
-                        </td>
-                        <td className="py-3 pr-4"><Badge status={g.status} /></td>
-                        <td className="py-3 pr-4 text-right font-medium text-ink">{num(g.total) > 0 ? fmtMoney(g.total) : '—'}</td>
-                        <td className="py-3 pr-4">
-                          {num(g.rating) > 0 ? renderStars(num(g.rating)) : <span className="text-ink/30 text-xs">—</span>}
-                        </td>
-                        <td className="py-3 pr-2 text-right">
-                          <div className="flex justify-end gap-1">
-                            <button onClick={() => setDetailId(g.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-ink hover:bg-canvas transition-colors">
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => openEdit(g)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-plum hover:bg-lilac transition-colors">
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => deleteGroom(g)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-coral hover:bg-coral/10 transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
+                          <div className="text-xs text-ink/50 mt-0.5">{fmtDate(g.date)} · Owner: {g.owner}</div>
+                        </div>
+                        <Badge status={g.status} />
+                      </div>
+
+                      <div className="text-xs">
+                        <span className="text-ink/40 text-[10px] block uppercase font-medium mb-1">Services & Groomer</span>
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {(g.services || []).map((s) => (
+                            <span key={s.id || s.name} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-lilac text-plum">{s.name}</span>
+                          ))}
+                        </div>
+                        {g.groomer && <div className="text-[11px] text-ink/60">Groomer: <span className="font-medium text-ink/80">{g.groomer}</span></div>}
+                      </div>
+
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-white/90 border border-line/60 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-ink/40 text-[10px] uppercase font-medium">Rating:</span>
+                          {num(g.rating) > 0 ? renderStars(num(g.rating)) : <span className="text-ink/40 text-xs">—</span>}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-ink/40 uppercase font-medium block">Total</span>
+                          <span className="font-bold text-ink">{num(g.total) > 0 ? fmtMoney(g.total) : '—'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-line/60">
+                        <Button size="sm" variant="outline" onClick={() => setDetailId(g.id)} className="text-xs text-ink/70">
+                          <Eye className="w-3.5 h-3.5 mr-1" /> View
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(g)} className="text-xs text-plum hover:bg-lilac">
+                          <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        <button onClick={() => deleteGroom(g)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table View (>= md) */}
+                <div className="overflow-x-auto hidden md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-line">
+                        <th className="py-2.5 pr-4 font-semibold">Appt #</th>
+                        <th className="py-2.5 pr-4 font-semibold">Date</th>
+                        <th className="py-2.5 pr-4 font-semibold">Pet</th>
+                        <th className="py-2.5 pr-4 font-semibold">Owner</th>
+                        <th className="py-2.5 pr-4 font-semibold">Groomer</th>
+                        <th className="py-2.5 pr-4 font-semibold">Services</th>
+                        <th className="py-2.5 pr-4 font-semibold">Status</th>
+                        <th className="py-2.5 pr-4 font-semibold text-right">Total</th>
+                        <th className="py-2.5 pr-4 font-semibold">Rating</th>
+                        <th className="py-2.5 pr-2 font-semibold text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {historyFiltered.map((g) => (
+                        <tr key={g.id} className="border-b border-line/60 hover:bg-canvas/50 transition-colors">
+                          <td className="py-3 pr-4 font-mono text-xs text-ink/70">{g.appointmentNumber || '—'}</td>
+                          <td className="py-3 pr-4 text-ink/60">{fmtDate(g.date)}</td>
+                          <td className="py-3 pr-4 font-medium text-ink">{g.petName}</td>
+                          <td className="py-3 pr-4 text-ink/60">{g.owner}</td>
+                          <td className="py-3 pr-4 text-ink/60">{g.groomer}</td>
+                          <td className="py-3 pr-4">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {(g.services || []).map((s) => (
+                                <span key={s.id || s.name} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-lilac text-plum">{s.name}</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4"><Badge status={g.status} /></td>
+                          <td className="py-3 pr-4 text-right font-medium text-ink">{num(g.total) > 0 ? fmtMoney(g.total) : '—'}</td>
+                          <td className="py-3 pr-4">
+                            {num(g.rating) > 0 ? renderStars(num(g.rating)) : <span className="text-ink/30 text-xs">—</span>}
+                          </td>
+                          <td className="py-3 pr-2 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button onClick={() => setDetailId(g.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-ink hover:bg-canvas transition-colors">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openEdit(g)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-plum hover:bg-lilac transition-colors">
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteGroom(g)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-coral hover:bg-coral/10 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </Card>
         )}

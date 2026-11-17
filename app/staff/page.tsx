@@ -144,7 +144,7 @@ export default function StaffPage() {
         <StatCard icon={Users} label="Total staff" value={String(db.staff.length)} tone="plum" />
         <StatCard icon={CheckCircle2} label="Active" value={String(activeCount)} tone="plum" />
         <StatCard icon={Clock} label="On leave" value={String(onLeaveCount)} tone="amber" />
-        <StatCard icon={DollarSign} label="Monthly payroll" value={fmtMoney(totalPayroll)} tone="coral" />
+        {/* <StatCard icon={DollarSign} label="Monthly payroll" value={fmtMoney(totalPayroll)} tone="coral" /> */}
       </div>
 
       <div className="flex justify-between items-center mb-4">

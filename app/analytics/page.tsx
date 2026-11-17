@@ -1096,7 +1096,47 @@ export default function AnalyticsPage() {
               </Card>
               <Card className="p-5">
                 <h3 className="text-sm font-semibold text-ink mb-4">Doctor performance table</h3>
-                <div className="overflow-x-auto">
+                {/* Mobile Cards View (< md) */}
+                <div className="md:hidden space-y-3">
+                  {doctorPerf.map((d) => (
+                    <div key={d.name} className="p-3.5 rounded-xl border border-line bg-canvas/30 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm text-ink">{d.name}</span>
+                        <span className="font-bold text-sm text-plum">{settings.currencySymbol}{d.revenue.toLocaleString('en-US')}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
+                        <div className="bg-white/80 p-1.5 rounded-lg border border-line/50">
+                          <span className="text-[10px] text-ink/40 block">Total</span>
+                          <span className="font-semibold text-ink">{d.total}</span>
+                        </div>
+                        <div className="bg-white/80 p-1.5 rounded-lg border border-line/50">
+                          <span className="text-[10px] text-plum block">Done</span>
+                          <span className="font-semibold text-plum">{d.completed}</span>
+                        </div>
+                        <div className="bg-white/80 p-1.5 rounded-lg border border-line/50">
+                          <span className="text-[10px] text-coral block">Cancel</span>
+                          <span className="font-semibold text-coral">{d.cancelled}</span>
+                        </div>
+                        <div className="bg-white/80 p-1.5 rounded-lg border border-line/50">
+                          <span className="text-[10px] text-amber-600 block">No-show</span>
+                          <span className="font-semibold text-amber-600">{d.noShow}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-ink/50 text-[11px]">Completion Rate</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 h-2 rounded-full bg-line overflow-hidden">
+                            <div className="h-full rounded-full bg-plum" style={{ width: `${d.completionRate}%` }} />
+                          </div>
+                          <span className="text-xs font-semibold text-ink/80">{d.completionRate}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table View (>= md) */}
+                <div className="overflow-x-auto hidden md:block">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-line">

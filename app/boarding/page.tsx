@@ -740,51 +740,97 @@ export default function BoardingPage() {
             {dischargedFiltered.length === 0 ? (
               <EmptyState icon={ClipboardList} title="No discharge records" hint="Discharged pets will appear here." />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-line">
-                      <th className="py-2.5 pr-4 font-semibold">Boarding #</th>
-                      <th className="py-2.5 pr-4 font-semibold">Pet</th>
-                      <th className="py-2.5 pr-4 font-semibold">Owner</th>
-                      <th className="py-2.5 pr-4 font-semibold">Room</th>
-                      <th className="py-2.5 pr-4 font-semibold">Check-in</th>
-                      <th className="py-2.5 pr-4 font-semibold">Check-out</th>
-                      <th className="py-2.5 pr-4 font-semibold text-right">Nights</th>
-                      <th className="py-2.5 pr-4 font-semibold text-right">Total</th>
-                      <th className="py-2.5 pr-4 font-semibold">Payment</th>
-                      <th className="py-2.5 pr-2 font-semibold text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dischargedFiltered.map((b) => (
-                      <tr key={b.id} className="border-b border-line/60 hover:bg-canvas/50 transition-colors">
-                        <td className="py-3 pr-4 font-mono text-xs text-ink/70">{b.boardingNumber || '—'}</td>
-                        <td className="py-3 pr-4 font-medium text-ink">{b.petName}</td>
-                        <td className="py-3 pr-4 text-ink/60">{b.owner}</td>
-                        <td className="py-3 pr-4 text-ink/60">{b.room}</td>
-                        <td className="py-3 pr-4 text-ink/60">{fmtDate(b.checkIn)}</td>
-                        <td className="py-3 pr-4 text-ink/60">{fmtDate(b.actualCheckOut || b.checkOut)}</td>
-                        <td className="py-3 pr-4 text-right text-ink/60">{nightsBetween(b.checkIn, b.actualCheckOut || b.checkOut)}</td>
-                        <td className="py-3 pr-4 text-right font-medium text-ink">{fmtMoney(b.total || 0)}</td>
-                        <td className="py-3 pr-4">
-                          {b.paymentStatus ? <Badge status={b.paymentStatus} /> : <span className="text-ink/30 text-xs">—</span>}
-                        </td>
-                        <td className="py-3 pr-2 text-right">
-                          <div className="flex justify-end gap-1">
-                            <button onClick={() => setDetailId(b.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-ink hover:bg-canvas transition-colors">
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => deleteBoard(b)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-coral hover:bg-coral/10 transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+              <>
+                {/* Mobile Cards View (< md) */}
+                <div className="md:hidden space-y-3">
+                  {dischargedFiltered.map((b) => (
+                    <div key={b.id} className="p-3.5 rounded-xl border border-line bg-canvas/40 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold text-sm text-ink flex items-center gap-2">
+                            <span>{b.petName}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-line text-ink/70 font-mono">{b.boardingNumber || '—'}</span>
                           </div>
-                        </td>
+                          <div className="text-xs text-ink/50 mt-0.5">Owner: {b.owner} · Room: {b.room}</div>
+                        </div>
+                        {b.paymentStatus ? <Badge status={b.paymentStatus} /> : <span className="text-ink/30 text-xs">—</span>}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-white/80 p-2 rounded-lg border border-line/60">
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Check In</span>
+                          <span className="font-medium text-ink/80">{fmtDate(b.checkIn)}</span>
+                        </div>
+                        <div className="bg-white/80 p-2 rounded-lg border border-line/60">
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Check Out</span>
+                          <span className="font-medium text-ink/80">{fmtDate(b.actualCheckOut || b.checkOut)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-white/90 border border-line/60 text-xs">
+                        <span className="text-ink/60">{nightsBetween(b.checkIn, b.actualCheckOut || b.checkOut)} nights</span>
+                        <span className="font-bold text-ink">{fmtMoney(b.total || 0)}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-line/60">
+                        <Button size="sm" variant="outline" onClick={() => setDetailId(b.id)} className="text-xs text-ink/70">
+                          <Eye className="w-3.5 h-3.5 mr-1" /> View details
+                        </Button>
+                        <button onClick={() => deleteBoard(b)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop Table View (>= md) */}
+                <div className="overflow-x-auto hidden md:block">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-ink/50 border-b border-line">
+                        <th className="py-2.5 pr-4 font-semibold">Boarding #</th>
+                        <th className="py-2.5 pr-4 font-semibold">Pet</th>
+                        <th className="py-2.5 pr-4 font-semibold">Owner</th>
+                        <th className="py-2.5 pr-4 font-semibold">Room</th>
+                        <th className="py-2.5 pr-4 font-semibold">Check-in</th>
+                        <th className="py-2.5 pr-4 font-semibold">Check-out</th>
+                        <th className="py-2.5 pr-4 font-semibold text-right">Nights</th>
+                        <th className="py-2.5 pr-4 font-semibold text-right">Total</th>
+                        <th className="py-2.5 pr-4 font-semibold">Payment</th>
+                        <th className="py-2.5 pr-2 font-semibold text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {dischargedFiltered.map((b) => (
+                        <tr key={b.id} className="border-b border-line/60 hover:bg-canvas/50 transition-colors">
+                          <td className="py-3 pr-4 font-mono text-xs text-ink/70">{b.boardingNumber || '—'}</td>
+                          <td className="py-3 pr-4 font-medium text-ink">{b.petName}</td>
+                          <td className="py-3 pr-4 text-ink/60">{b.owner}</td>
+                          <td className="py-3 pr-4 text-ink/60">{b.room}</td>
+                          <td className="py-3 pr-4 text-ink/60">{fmtDate(b.checkIn)}</td>
+                          <td className="py-3 pr-4 text-ink/60">{fmtDate(b.actualCheckOut || b.checkOut)}</td>
+                          <td className="py-3 pr-4 text-right text-ink/60">{nightsBetween(b.checkIn, b.actualCheckOut || b.checkOut)}</td>
+                          <td className="py-3 pr-4 text-right font-medium text-ink">{fmtMoney(b.total || 0)}</td>
+                          <td className="py-3 pr-4">
+                            {b.paymentStatus ? <Badge status={b.paymentStatus} /> : <span className="text-ink/30 text-xs">—</span>}
+                          </td>
+                          <td className="py-3 pr-2 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button onClick={() => setDetailId(b.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-ink hover:bg-canvas transition-colors">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteBoard(b)} className="w-7 h-7 rounded-lg flex items-center justify-center text-ink/40 hover:text-coral hover:bg-coral/10 transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </Card>
         )}
