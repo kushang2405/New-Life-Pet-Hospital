@@ -138,22 +138,6 @@ export function navForRole(role: Role): NavItem[] {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Demo Accounts
-   ───────────────────────────────────────────────────────── */
-
-export type DemoAccount = {
-  email: string;
-  password: string;
-  name: string;
-  role: Role;
-};
-
-export const demoAccounts: DemoAccount[] = [
-  { email: 'admin@petcare.pro', password: 'admin123', name: 'Super Admin', role: 'Super Admin' },
-  { email: 'staff@petcare.pro', password: 'staff123', name: 'Staff Member', role: 'Staff' },
-];
-
-/* ─────────────────────────────────────────────────────────
    Staff role options (for staff management forms)
    ───────────────────────────────────────────────────────── */
 

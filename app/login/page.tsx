@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PawPrint, Lock, Mail, Eye, EyeOff, ArrowRight, Shield, User as UserIcon, KeyRound, ArrowLeft } from 'lucide-react';
 import { login, getUser, requestPasswordReset, confirmPasswordReset } from '../lib/auth';
 import { Field, Input } from '../components/ui';
-import { demoAccounts, roleInfo } from '../lib/platform';
 import { useSettings } from '../lib/settings';
-import type { Role } from '../lib/platform';
 
 type Mode = 'login' | 'reset-request' | 'reset-confirm';
 
@@ -22,7 +20,6 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('login');
   const [resetEmail, setResetEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
@@ -58,12 +55,6 @@ export default function LoginPage() {
       router.replace(u.role === 'Staff' ? '/attendance' : '/');
     }
   }, [router]);
-
-  const pickRole = (accountEmail: string, accountPass: string) => {
-    setEmail(accountEmail);
-    setPassword(accountPass);
-    setError('');
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,46 +196,6 @@ export default function LoginPage() {
                   {loading ? 'Signing in...' : <>Sign in <ArrowRight className="w-4 h-4 hv-slide" /></>}
                 </button>
               </form>
-
-              {/* <div className="mt-8">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-1 h-px bg-line" />
-                  <span className="text-[11px] text-ink/40 font-medium uppercase tracking-wide">Quick role access</span>
-                  <div className="flex-1 h-px bg-line" />
-                </div>
-                <p className="text-[11px] text-ink/50 mb-3 text-center">
-                  Click any role card to auto-fill credentials, then sign in.
-                </p>
-                <div className="grid grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-1">
-                  {demoAccounts.map((a) => {
-                    const isSelected = selectedRole === a.email || email === a.email;
-                    const colorCls = roleInfo[a.role as Role]?.badgeColor ?? 'bg-ink/5 text-ink/60 border-line';
-                    return (
-                      <button
-                        key={a.email}
-                        onClick={() => {
-                          pickRole(a.email, a.password);
-                          setSelectedRole(a.email);
-                        }}
-                        className={`hv-lift flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left ${
-                          isSelected
-                            ? 'border-plum bg-lilac ring-2 ring-lilac'
-                            : 'border-line bg-white hover:border-plum/40 hover:bg-canvas'
-                        }`}
-                      >
-                        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium border ${colorCls}`}>
-                          {a.role === 'Super Admin' ? (
-                            <Shield className="w-2.5 h-2.5" />
-                          ) : null}
-                          {a.role}
-                        </div>
-                        <div className="text-xs font-medium text-ink truncate w-full">{a.name}</div>
-                        <div className="text-[10px] text-ink/40 truncate w-full">{a.email}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div> */}
             </>
           )}
 

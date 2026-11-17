@@ -2,8 +2,7 @@ const crypto = require('crypto');
 const asyncHandler = require('../middleware/asyncHandler');
 const Staff = require('../models/Staff');
 
-// Test coordinates, not the real hospital location.
-// const HOSPITAL = { latitude: 21.1528, longitude: 72.8310, radiusMeters: 150 };
+// Hospital geo-fencing location (Surat)
 const HOSPITAL = { latitude: 21.2052, longitude: 72.8374, radiusMeters: 300 };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
