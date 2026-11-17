@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, DateInput, Field, Input, Radio, Select } from './ui';
 import { authFetch } from '../lib/auth';
 import { createCertificatePdf } from '../lib/certificate-pdf';
@@ -35,21 +35,48 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const ownerPets = useMemo(() => pets.filter((pet) => pet.ownerId === ownerId), [pets, ownerId]);
-  const selectedOwner = owners.find((owner) => owner.id === ownerId);
-  const selectedPet = ownerPets.find((pet) => pet.id === petId);
+  const petOptions = useMemo(() => {
+    if (!ownerId) return pets;
+    const matching = pets.filter((pet) => pet.ownerId === ownerId);
+    return matching.length > 0 ? matching : pets;
+  }, [pets, ownerId]);
+
+  const selectedPet = pets.find((pet) => pet.id === petId) || petOptions.find((pet) => pet.id === petId);
+  const selectedOwner = owners.find((owner) => owner.id === (ownerId || selectedPet?.ownerId)) || owners.find((owner) => owner.id === ownerId);
+
+  useEffect(() => {
+    if (!petId && pets.length > 0) {
+      setPetId(pets[0].id);
+      if (pets[0].ownerId) setOwnerId(pets[0].ownerId);
+      setChipNumber(pets[0].microchipNumber ?? '');
+    } else if (!ownerId && owners.length > 0) {
+      setOwnerId(owners[0].id);
+    }
+  }, [pets, owners, petId, ownerId]);
 
   const selectOwner = (id: string) => {
     setOwnerId(id);
-    setPetId('');
-    setChipNumber('');
     if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
+    const matching = pets.filter((p) => p.ownerId === id);
+    if (matching.length > 0) {
+      setPetId(matching[0].id);
+      setChipNumber(matching[0].microchipNumber ?? '');
+      if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
+    } else {
+      setPetId('');
+      setChipNumber('');
+    }
   };
 
   const selectPet = (id: string) => {
     setPetId(id);
-    setChipNumber(pets.find((pet) => pet.id === id)?.microchipNumber ?? '');
+    const chosenPet = pets.find((pet) => pet.id === id);
+    setChipNumber(chosenPet?.microchipNumber ?? '');
     if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
+    if (chosenPet?.ownerId) {
+      setOwnerId(chosenPet.ownerId);
+      if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
+    }
   };
 
   const submit = async () => {
@@ -130,9 +157,16 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
           </Select>
         </Field>
         <Field label="Pet" required error={fieldErrors.pet}>
-          <Select value={petId} onChange={(e) => selectPet(e.target.value)} disabled={!ownerId}>
+          <Select value={petId} onChange={(e) => selectPet(e.target.value)}>
             <option value="">Select pet</option>
-            {ownerPets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
+            {petOptions.map((pet) => {
+              const petOwner = owners.find((o) => o.id === pet.ownerId);
+              return (
+                <option key={pet.id} value={pet.id}>
+                  {pet.name} {pet.species ? `(${pet.species})` : ''} {petOwner && (!ownerId || pet.ownerId !== ownerId) ? `· ${petOwner.name}` : ''}
+                </option>
+              );
+            })}
           </Select>
         </Field>
       </div>

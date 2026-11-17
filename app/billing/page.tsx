@@ -840,9 +840,24 @@ export default function BillingPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <Field label="Pet">
-              <Select value={invForm.petId} onChange={(e) => setInv('petId', e.target.value)}>
+              <Select
+                value={invForm.petId}
+                onChange={(e) => {
+                  const petId = e.target.value;
+                  setInv('petId', petId);
+                  const p = db.pets.find((x) => x.id === petId);
+                  if (p?.ownerId && !invForm.ownerId) {
+                    setInv('ownerId', p.ownerId);
+                    setInvErr((prev) => ({ ...prev, owner: undefined }));
+                  }
+                }}
+              >
                 <option value="">Select pet…</option>
-                {db.pets.filter((p) => p.ownerId === invForm.ownerId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {(invForm.ownerId ? (db.pets.filter((p) => p.ownerId === invForm.ownerId).length > 0 ? db.pets.filter((p) => p.ownerId === invForm.ownerId) : db.pets) : db.pets).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} {!invForm.ownerId ? `(${ownerName(p.ownerId)})` : ''}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Tax rate (%)" hint="Applies to every line item; override per line below.">

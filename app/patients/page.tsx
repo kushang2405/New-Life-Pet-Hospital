@@ -126,7 +126,7 @@ export default function PatientsPage() {
     setOpen(true);
   };
 
-  const savePatient = () => {
+  const savePatient = async () => {
     const errs: Record<string, string> = {};
     if (!form.ownerName?.trim()) errs.ownerName = 'Please enter owner name';
     if (!form.phone?.trim()) errs.phone = 'Please enter phone number';
@@ -150,15 +150,15 @@ export default function PatientsPage() {
       insuranceExpiry: form.insuranceExpiry, notes: form.notes,
     };
     if (editPet) {
-      update('pets', editPet.id, petData);
+      await update('pets', editPet.id, petData);
       if (editOwnerObj && (form.ownerName !== editOwnerObj.name || form.phone !== editOwnerObj.phone)) {
-        update('owners', editOwnerObj.id, { name: form.ownerName, phone: form.phone });
+        await update('owners', editOwnerObj.id, { name: form.ownerName, phone: form.phone });
       }
     } else {
       let owner = db?.owners.find((o) => o.name.toLowerCase() === form.ownerName.toLowerCase());
       if (!owner) {
-        owner = { id: newId('own'), customerId: `CUST-${String((db?.owners.length ?? 0) + 1).padStart(4, '0')}`, name: form.ownerName, phone: form.phone, email: '', address: '', dateOfBirth: '', occupation: '', emergencyContacts: [], familyMembers: [], membershipPlan: 'None', membershipSince: today(), loyaltyPoints: 0, creditBalance: 0, communicationLog: [], notifications: [], feedback: [], createdAt: today() };
-        create('owners', owner);
+        const newOwnerObj: Owner = { id: newId('own'), customerId: `CUST-${String((db?.owners.length ?? 0) + 1).padStart(4, '0')}`, name: form.ownerName, phone: form.phone, email: '', address: '', dateOfBirth: '', occupation: '', emergencyContacts: [], familyMembers: [], membershipPlan: 'None', membershipSince: today(), loyaltyPoints: 0, creditBalance: 0, communicationLog: [], notifications: [], feedback: [], createdAt: today() };
+        owner = await create('owners', newOwnerObj);
       }
       const pet: Pet = {
         id: newId('pet'), ownerId: owner.id,
@@ -167,7 +167,7 @@ export default function PatientsPage() {
         photos: [], documents: [],
         createdAt: today(),
       };
-      create('pets', pet);
+      await create('pets', pet);
     }
     setOpen(false);
     setEditPet(null);

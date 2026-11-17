@@ -40,13 +40,24 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   const [notice, setNotice] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const selectedOwner = owners.find((owner) => owner.id === ownerId);
-  const ownerPets = useMemo(() => pets.filter((pet) => pet.ownerId === ownerId), [pets, ownerId]);
-  const selectedPet = ownerPets.find((pet) => pet.id === petId);
+  const petOptions = useMemo(() => {
+    if (!ownerId) return pets;
+    const matching = pets.filter((pet) => pet.ownerId === ownerId);
+    return matching.length > 0 ? matching : pets;
+  }, [pets, ownerId]);
+
+  const selectedPet = pets.find((pet) => pet.id === petId) || petOptions.find((pet) => pet.id === petId);
+  const selectedOwner = owners.find((owner) => owner.id === (ownerId || selectedPet?.ownerId)) || owners.find((owner) => owner.id === ownerId);
 
   useEffect(() => {
-    if (!ownerId && owners[0]) setOwnerId(owners[0].id);
-  }, [ownerId, owners]);
+    if (report) return;
+    if (!petId && pets.length > 0) {
+      setPetId(pets[0].id);
+      if (pets[0].ownerId) setOwnerId(pets[0].ownerId);
+    } else if (!ownerId && owners.length > 0) {
+      setOwnerId(owners[0].id);
+    }
+  }, [pets, owners, petId, ownerId, report]);
 
   useEffect(() => {
     if (report?.logoData) return;
@@ -56,16 +67,33 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   }, [report?.logoData]);
 
   useEffect(() => {
-    if (ownerPets.length && !ownerPets.some((pet) => pet.id === petId)) setPetId(ownerPets[0].id);
-    if (!ownerPets.length) setPetId('');
-  }, [ownerPets, petId]);
-
-  useEffect(() => {
     if (!selectedPet?.birthDate) return;
     const reportDate = new Date(`${details.date || new Date().toISOString().slice(0, 10)}T00:00:00`);
     const age = formatPetAge(selectedPet.birthDate, reportDate);
     setDetails((current) => ({ ...current, ageGender: age }));
   }, [selectedPet?.birthDate, details.date]);
+
+  const handleOwnerChange = (newOwnerId: string) => {
+    setOwnerId(newOwnerId);
+    if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
+    const matching = pets.filter((p) => p.ownerId === newOwnerId);
+    if (matching.length > 0) {
+      setPetId(matching[0].id);
+      if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
+    } else {
+      setPetId('');
+    }
+  };
+
+  const handlePetChange = (newPetId: string) => {
+    setPetId(newPetId);
+    if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
+    const chosenPet = pets.find((pet) => pet.id === newPetId);
+    if (chosenPet?.ownerId) {
+      setOwnerId(chosenPet.ownerId);
+      if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
+    }
+  };
 
   const updateDetails = (key: keyof PatientDetails, value: string) => setDetails((current) => ({ ...current, [key]: value }));
   const updateRow = (index: number, key: keyof ReportAnalyte, value: string) => {
@@ -216,11 +244,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
         <Field label="Owner" required error={fieldErrors.owner}>
           <Select
             value={ownerId}
-            onChange={(event) => {
-              setOwnerId(event.target.value);
-              setPetId('');
-              if (fieldErrors.owner) setFieldErrors((prev) => ({ ...prev, owner: '' }));
-            }}
+            onChange={(event) => handleOwnerChange(event.target.value)}
           >
             <option value="">Select owner</option>
             {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
@@ -229,14 +253,17 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
         <Field label="Pet" required error={fieldErrors.pet}>
           <Select
             value={petId}
-            onChange={(event) => {
-              setPetId(event.target.value);
-              if (fieldErrors.pet) setFieldErrors((prev) => ({ ...prev, pet: '' }));
-            }}
-            disabled={!ownerId}
+            onChange={(event) => handlePetChange(event.target.value)}
           >
             <option value="">Select pet</option>
-            {ownerPets.map((pet) => <option key={pet.id} value={pet.id}>{pet.name}</option>)}
+            {petOptions.map((pet) => {
+              const petOwner = owners.find((o) => o.id === pet.ownerId);
+              return (
+                <option key={pet.id} value={pet.id}>
+                  {pet.name} {pet.species ? `(${pet.species})` : ''} {petOwner && (!ownerId || pet.ownerId !== ownerId) ? `· ${petOwner.name}` : ''}
+                </option>
+              );
+            })}
           </Select>
         </Field>
       </div>
