@@ -4,8 +4,8 @@ const { jsPDF } = require('jspdf');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const logoData = fs.readFileSync('C:/Users/KUSHANG TANAWALA/.gemini/antigravity/brain/1371a0fa-2e21-49d8-8287-e48eeed407cd/sweety_logo.png');
-const DEFAULT_LOGO = 'data:image/jpeg;base64,' + logoData.toString('base64');
+const logoData = fs.readFileSync('C:/Users/KUSHANG TANAWALA/.gemini/antigravity/brain/1371a0fa-2e21-49d8-8287-e48eeed407cd/cropped_heart_logo.png');
+const DEFAULT_LOGO = 'data:image/png;base64,' + logoData.toString('base64');
 
 const CBC_REFERENCE_RANGES = {
   haemoglobin: '11.0-19.0',
@@ -97,24 +97,29 @@ function formatDoctorName(name) {
 
 function generatePdf(r) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const logo = r.logoData || DEFAULT_LOGO;
-  const logoTop = 20;
-  let logoBottom = logoTop;
+  const logo = DEFAULT_LOGO;
+  const logoTop = 25;
+  const targetLogoH = 54;
+  let logoH = targetLogoH;
+  let logoBottom = logoTop + logoH;
   try {
     const format = logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
     const { width, height } = doc.getImageProperties(logo);
     const aspect = width / height;
-    const logoMaxH = 72;
-    const logoW = Math.min(105, logoMaxH * aspect);
-    const logoH = logoW / aspect;
+    const logoW = Math.min(85, targetLogoH * aspect);
+    logoH = logoW / aspect;
     doc.addImage(logo, format, 38, logoTop, logoW, logoH);
     logoBottom = logoTop + logoH;
   } catch {
-    logoBottom = logoTop + 40;
+    logoBottom = logoTop + 54;
   }
 
-  const detailsTop = 22;
+  const logoCenterY = logoTop + logoH / 2;
   const rowH = 18;
+  const row1Y = Math.round(logoCenterY + 2);
+  const row0Y = row1Y - rowH;
+  const row2Y = row1Y + rowH;
+  const yPositions = [row0Y, row1Y, row2Y];
 
   const pet = r.petSnapshot || {};
   const petUpper = (pet.name || 'PATIENT').trim().toUpperCase();
@@ -173,7 +178,7 @@ function generatePdf(r) {
   ];
 
   detailsRows.forEach((row, idx) => {
-    const y = detailsTop + idx * rowH;
+    const y = yPositions[idx];
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -197,46 +202,70 @@ function generatePdf(r) {
     doc.text(row.c2Val, col2ValX, y);
   });
 
-  const headerBottom = Math.max(logoBottom, detailsTop + 3 * rowH) + 12;
+  const headerBottom = Math.max(logoBottom, yPositions[2]) + 14;
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.5);
   doc.line(38, headerBottom, 554, headerBottom);
 
-  const tableTop = headerBottom + 16;
-  const isCbc = r.reportType === 'CBC';
+  let curY = headerBottom + 14;
+
+  const isCbc = (r.reportType || '').toUpperCase() === 'CBC';
+  const sectionTitle = isCbc ? 'CBC' : (r.reportType || 'BIOCHEMISTRY');
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text(r.reportType || 'CBC', 296, tableTop, { align: 'center' });
+  doc.setTextColor(25, 25, 25);
+  doc.text(sectionTitle, 296, curY, { align: 'center' });
+  curY += 18;
 
   doc.setFillColor(236, 236, 236);
-  doc.rect(38, tableTop + 6, 516, 20, 'F');
+  doc.rect(38, curY - 13, 516, 20, 'F');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(25, 25, 25);
-  const cols = [38, 190, 276, 350, 456];
-  if (isCbc) {
-    ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE'].forEach((lbl, idx) =>
-      doc.text(lbl, cols[idx] + 3, tableTop + 19)
-    );
-  } else {
-    ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'].forEach((lbl, idx) =>
-      doc.text(lbl, cols[idx] + 3, tableTop + 19)
-    );
-  }
+  const cols = isCbc ? [38, 172, 250, 316] : [38, 172, 250, 316, 420];
+  const headers = isCbc
+    ? ['TEST NAME', 'RESULTS', 'UNITS', 'REF-RANGE']
+    : ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'];
+  headers.forEach((h, idx) => {
+    doc.text(h, cols[idx] + 3, curY);
+  });
+  curY += 20;
 
-  let curY = tableTop + 34;
   const analytes = r.analytes || [];
   analytes.forEach((a) => {
-    if (curY > 670) {
-      doc.addPage();
-      curY = 40;
-    }
     doc.setDrawColor(190, 190, 190);
+    doc.setLineWidth(0.5);
     doc.line(38, curY + 7, 554, curY + 7);
+
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    doc.text((a.name || '').slice(0, 28), cols[0] + 3, curY);
+    doc.setTextColor(25, 25, 25);
+    doc.text(String(a.name || '').slice(0, 28), cols[0] + 3, curY);
+
     doc.setFont('helvetica', 'normal');
-    doc.text(String(a.result || '').slice(0, 14), cols[1] + 3, curY);
+    const val = String(a.result || '');
+    const ref = String(a.referenceRange || (isCbc ? cbcRef(a.name) : ''));
+    let inRange = null;
+    if (ref.includes('-')) {
+      const [low, high] = ref.split('-').map((v) => parseFloat(v));
+      const num = parseFloat(val);
+      if (!isNaN(low) && !isNaN(high) && !isNaN(num)) {
+        inRange = num >= low && num <= high;
+      }
+    }
+    if (inRange !== null) {
+      if (inRange) {
+        doc.setTextColor(30, 100, 220); // Blue
+      } else {
+        doc.setTextColor(215, 38, 56); // Red
+      }
+    } else {
+      doc.setTextColor(25, 25, 25);
+    }
+    doc.text(val.slice(0, 14), cols[1] + 3, curY);
+
+    doc.setTextColor(25, 25, 25);
     doc.text(String(a.unit || '').slice(0, 14), cols[2] + 3, curY);
     doc.text(
       String(a.referenceRange || (isCbc ? cbcRef(a.name) : '')).slice(0, 18),

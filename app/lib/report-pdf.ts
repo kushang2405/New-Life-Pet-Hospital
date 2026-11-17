@@ -48,26 +48,31 @@ function drawHeaderSection(doc: jsPDF, draft: ReportDraft): number {
 
   // 1. Logo on Left Side
   const logo = draft.logoDataUrl || DEFAULT_REPORT_BANNER;
-  const logoTop = 20;
-  let logoBottom = logoTop;
+  const logoTop = 25;
+  const targetLogoH = 54;
+  let logoH = targetLogoH;
+  let logoBottom = logoTop + logoH;
   if (logo) {
     try {
       const format = logo.startsWith('data:image/png') ? 'PNG' : 'JPEG';
       const { width, height } = doc.getImageProperties(logo);
       const aspect = width / height;
-      const logoMaxH = 72;
-      const logoW = Math.min(105, logoMaxH * aspect);
-      const logoH = logoW / aspect;
+      const logoW = Math.min(85, targetLogoH * aspect);
+      logoH = logoW / aspect;
       doc.addImage(logo, format, 38, logoTop, logoW, logoH);
       logoBottom = logoTop + logoH;
     } catch {
-      logoBottom = logoTop + 40;
+      logoBottom = logoTop + 54;
     }
   }
 
-  // 2. Patient Details on Right Side
-  const detailsTop = 22;
+  // 2. Patient Details on Right Side - vertically centered in line with the logo
+  const logoCenterY = logoTop + logoH / 2;
   const rowH = 18;
+  const row1Y = Math.round(logoCenterY + 2);
+  const row0Y = row1Y - rowH;
+  const row2Y = row1Y + rowH;
+  const yPositions = [row0Y, row1Y, row2Y];
 
   // Pet name with MR. or MISS prefix
   const petNameRaw = (pet.name || 'PATIENT').trim();
@@ -134,7 +139,7 @@ function drawHeaderSection(doc: jsPDF, draft: ReportDraft): number {
   ];
 
   detailsRows.forEach((row, idx) => {
-    const y = detailsTop + idx * rowH;
+    const y = yPositions[idx];
 
     // Col 1
     doc.setFont('helvetica', 'normal');
@@ -161,7 +166,7 @@ function drawHeaderSection(doc: jsPDF, draft: ReportDraft): number {
   });
 
   // Divider line below header
-  const headerBottom = Math.max(logoBottom, detailsTop + 3 * rowH) + 12;
+  const headerBottom = Math.max(logoBottom, row2Y) + 14;
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.5);
   doc.line(38, headerBottom, 554, headerBottom);
