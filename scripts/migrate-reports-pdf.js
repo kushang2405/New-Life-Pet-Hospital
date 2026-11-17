@@ -207,7 +207,7 @@ function generatePdf(r) {
   doc.setLineWidth(0.5);
   doc.line(38, headerBottom, 554, headerBottom);
 
-  let curY = headerBottom + 14;
+  let curY = headerBottom + 18;
 
   const isCbc = (r.reportType || '').toUpperCase() === 'CBC';
   const sectionTitle = isCbc ? 'CBC' : (r.reportType || 'BIOCHEMISTRY');
@@ -216,7 +216,7 @@ function generatePdf(r) {
   doc.setFontSize(9);
   doc.setTextColor(25, 25, 25);
   doc.text(sectionTitle, 296, curY, { align: 'center' });
-  curY += 18;
+  curY += 24;
 
   doc.setFillColor(236, 236, 236);
   doc.rect(38, curY - 13, 516, 20, 'F');

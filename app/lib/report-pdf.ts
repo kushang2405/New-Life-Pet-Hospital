@@ -171,7 +171,7 @@ function drawHeaderSection(doc: jsPDF, draft: ReportDraft): number {
   doc.setLineWidth(0.5);
   doc.line(38, headerBottom, 554, headerBottom);
 
-  return headerBottom + 14;
+  return headerBottom + 18;
 }
 
 function drawPageStart(doc: jsPDF, draft: ReportDraft): number {
@@ -193,7 +193,7 @@ function drawSectionTitle(doc: jsPDF, title: string, y: number, cbc: boolean): n
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text(title, 296, y, { align: 'center' });
-  return drawColumnHeader(doc, y + 18, cbc);
+  return drawColumnHeader(doc, y + 24, cbc);
 }
 
 function normalizedRow(row: ReportAnalyte): { result: string; referenceRange: string; inRange: boolean | null } {
