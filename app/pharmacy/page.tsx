@@ -1138,7 +1138,7 @@ export default function PharmacyPage() {
                       <Input className="w-32" value={b.batchNumber} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, batchNumber: e.target.value } : x) }))} placeholder="Batch No" />
                       <NumberInput value={String(b.quantity)} min={0} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, quantity: numMin(e.target.value, 0) } : x) }))} className="w-28" placeholder="Qty" />
                       <DateInput className="w-36" placeholder="Expiry" value={b.expiry} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, expiry: e.target.value } : x) }))} />
-                      <DateInput className="w-36" placeholder="Received" value={b.receivedDate} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, receivedDate: e.target.value } : x) }))} />
+                      <DateInput className="w-36" placeholder="Received" value={b.receivedDate} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, receivedDate: e.target.value } : x) }))} allowPast />
                       <NumberInput value={String(b.costPerUnit)} min={0} step={0.01} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, costPerUnit: numMin(e.target.value, 0) } : x) }))} className="w-28" placeholder="Cost" />
                       <button onClick={() => setMedForm((f) => ({ ...f, batches: f.batches.filter((x) => x.id !== b.id) }))} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors shrink-0" title="Remove batch"><X className="w-3.5 h-3.5" /></button>
                     </div>
@@ -1307,7 +1307,7 @@ export default function PharmacyPage() {
                     {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Date" required><DateInput value={purForm.date} onChange={(e) => setPur('date', e.target.value)} /></Field>
+                <Field label="Date" required><DateInput value={purForm.date} onChange={(e) => setPur('date', e.target.value)} allowPast /></Field>
                 <Field label="Status" hint={purForm.status === 'Received' ? 'Stock and batches will be booked in on save.' : undefined}>
                   <Select value={purForm.status} onChange={(e) => { setPur('status', e.target.value as Purchase['status']); setPurError(''); }}>
                     {purchaseStatuses.map((s) => <option key={s}>{s}</option>)}
@@ -1341,7 +1341,7 @@ export default function PharmacyPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Field label={`Discount (${settings.currencySymbol})`}><NumberInput value={String(purForm.discount)} min={0} step={0.01} onChange={(e) => { setPur('discount', numMin(e.target.value, 0)); setPurError(''); }} /></Field>
                 <Field label={`Tax (${settings.currencySymbol})`}><NumberInput value={String(purForm.tax)} min={0} step={0.01} onChange={(e) => setPur('tax', numMin(e.target.value, 0))} /></Field>
-                <Field label="Received date"><DateInput value={purForm.receivedDate} onChange={(e) => setPur('receivedDate', e.target.value)} /></Field>
+                <Field label="Received date"><DateInput value={purForm.receivedDate} onChange={(e) => setPur('receivedDate', e.target.value)} allowPast /></Field>
                 <div className="flex items-end"><div className="text-sm font-bold text-ink">Total: {money(purMoney.total)}</div></div>
               </div>
               <Field label="Notes"><Textarea value={purForm.notes} onChange={(e) => setPur('notes', e.target.value)} placeholder="Order notes…" className="min-h-[40px]" /></Field>
@@ -1415,7 +1415,7 @@ export default function PharmacyPage() {
               <ErrorNote message={saleError} />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Field label="Sale number" required><Input value={saleForm.saleNumber} onChange={(e) => { setSale('saleNumber', e.target.value); setSaleError(''); }} /></Field>
-                <Field label="Date" required><DateInput value={saleForm.date} onChange={(e) => setSale('date', e.target.value)} /></Field>
+                <Field label="Date" required><DateInput value={saleForm.date} onChange={(e) => setSale('date', e.target.value)} allowPast /></Field>
                 <Field label="Customer name"><Input value={saleForm.customerName} onChange={(e) => setSale('customerName', e.target.value)} placeholder="Eleanor Hayes" /></Field>
                 <Field label="Pet name"><Input value={saleForm.petName} onChange={(e) => setSale('petName', e.target.value)} placeholder="Biscuit (optional)" /></Field>
               </div>

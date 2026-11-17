@@ -389,7 +389,7 @@ export default function PatientsPage() {
                 </Select>
               </Field>
               <Field label="Color"><Input value={form.color} onChange={(e) => set('color', e.target.value)} placeholder="Golden" /></Field>
-              <Field label="Birth date"><DateInput value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} /></Field>
+              <Field label="Birth date"><DateInput value={form.birthDate} onChange={(e) => set('birthDate', e.target.value)} allowPast /></Field>
               <Field label="Weight (kg)"><NumberInput step={0.1} min={0} value={form.weight} onChange={(e) => set('weight', e.target.value)} placeholder="31.5" /></Field>
             </div>
           </div>

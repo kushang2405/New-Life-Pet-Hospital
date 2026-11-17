@@ -341,8 +341,8 @@ export default function VaccinationsPage() {
                 {vets.map((v) => <option key={v}>{v}</option>)}
               </Select>
             </Field>
-            <Field label="Date given"><DateInput value={form.dateGiven} onChange={(e) => set('dateGiven', e.target.value)} /></Field>
-            <Field label="Next due date"><DateInput value={form.nextDueDate} onChange={(e) => set('nextDueDate', e.target.value)} /></Field>
+            <Field label="Date given"><DateInput value={form.dateGiven} onChange={(e) => set('dateGiven', e.target.value)} allowPast /></Field>
+            <Field label="Next due date"><DateInput value={form.nextDueDate} onChange={(e) => set('nextDueDate', e.target.value)} min={form.dateGiven} /></Field>
           </div>
 
           <div className="border-t border-line pt-3">
@@ -365,7 +365,7 @@ export default function VaccinationsPage() {
               <Field label="Certificate ID"><Input value={form.certificateId} onChange={(e) => set('certificateId', e.target.value)} placeholder="Auto-generated if completed" /></Field>
               <div className="flex items-end gap-4 pb-1">
                 <Checkbox checked={form.verified} onChange={(e) => set('verified', e.target.checked)} label="Verified" />
-                <Checkbox checked={form.reminderSent} onChange={(e) => set('reminderSent', e.target.checked)} label="Reminder sent" />
+                {/* <Checkbox checked={form.reminderSent} onChange={(e) => set('reminderSent', e.target.checked)} label="Reminder sent" /> */}
               </div>
             </div>
           </div>

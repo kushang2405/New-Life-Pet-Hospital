@@ -559,7 +559,7 @@ export default function LabPage() {
                     {vetNames.map((n) => <option key={n}>{n}</option>)}
                   </Select>
                 </Field>
-                <Field label="Date ordered"><DatePicker value={form.dateOrdered} onChange={(e) => set('dateOrdered', e.target.value)} /></Field>
+                <Field label="Date ordered"><DatePicker value={form.dateOrdered} onChange={(e) => set('dateOrdered', e.target.value)} allowPast /></Field>
                 <Field label="Status">
                   <Select value={form.status} onChange={(e) => set('status', e.target.value as LabTest['status'])}>
                     {statuses.map((s) => <option key={s}>{s}</option>)}
@@ -597,7 +597,7 @@ export default function LabPage() {
                 <Field label="Sample volume"><Input value={form.sampleVolume} onChange={(e) => set('sampleVolume', e.target.value)} placeholder="e.g. 1.5 ml" /></Field>
                 <Field label="Collection method"><Input value={form.collectionMethod} onChange={(e) => set('collectionMethod', e.target.value)} placeholder="e.g. Jugular venipuncture" /></Field>
                 <Field label="Collected by"><Input value={form.collectedBy} onChange={(e) => set('collectedBy', e.target.value)} placeholder="Technician name" /></Field>
-                <Field label="Collection date"><DatePicker value={form.collectionDate} onChange={(e) => set('collectionDate', e.target.value)} /></Field>
+                <Field label="Collection date"><DatePicker value={form.collectionDate} onChange={(e) => set('collectionDate', e.target.value)} allowPast /></Field>
                 <Field label="Storage condition"><Input value={form.storageCondition} onChange={(e) => set('storageCondition', e.target.value)} placeholder="e.g. Refrigerated 4°C" /></Field>
               </div>
 
@@ -672,7 +672,7 @@ export default function LabPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Signed by"><Input value={form.signedBy} onChange={(e) => set('signedBy', e.target.value)} placeholder="Name" /></Field>
                       <Field label="Role"><Input value={form.signedRole} onChange={(e) => set('signedRole', e.target.value)} placeholder="e.g. Laboratory Technician" /></Field>
-                      <Field label="Signed date"><DatePicker value={form.signedDate} onChange={(e) => set('signedDate', e.target.value)} /></Field>
+                      <Field label="Signed date"><DatePicker value={form.signedDate} onChange={(e) => set('signedDate', e.target.value)} allowPast /></Field>
                     </div>
                   )}
                 </div>

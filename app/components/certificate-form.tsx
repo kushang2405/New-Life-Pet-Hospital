@@ -120,6 +120,7 @@ export default function CertificateForm({ owners, pets, letterhead, onSaved }: P
               setCertificateDate(e.target.value);
               if (fieldErrors.date) setFieldErrors((prev) => ({ ...prev, date: '' }));
             }}
+            allowPast
           />
         </Field>
         <Field label="Owner" required error={fieldErrors.owner}>

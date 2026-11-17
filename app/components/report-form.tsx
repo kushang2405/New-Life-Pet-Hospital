@@ -279,7 +279,7 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <Field label="Report date"><DateInput value={details.date} onChange={(event) => updateDetails('date', event.target.value)} /></Field>
+        <Field label="Report date"><DateInput value={details.date} onChange={(event) => updateDetails('date', event.target.value)} allowPast /></Field>
         {([['sampleNo', 'Sample no'], ['ageGender', 'Age from pet record'], ['sampleType', 'Sample type'], ['referredBy', 'Referred by'], ['doctorName', 'Doctor name'], ['doctorPosition', 'Doctor position']] as const).map(([key, label]) => (
           <Field key={key} label={label}><Input value={details[key]} onChange={(event) => updateDetails(key, event.target.value)} /></Field>
         ))}

@@ -33,6 +33,11 @@ export default function LeavesPage() {
 
   const submitLeave = async () => {
     setError('');
+    const today = localDate();
+    if (leaveForm.startDate < today) {
+      setError('Start date cannot be in the past.');
+      return;
+    }
     if (leaveForm.endDate < leaveForm.startDate) {
       setError('End date must be on or after the start date.');
       return;
@@ -134,7 +139,7 @@ export default function LeavesPage() {
                 <DateInput value={leaveForm.startDate} onChange={(e) => setLeaveForm((f) => ({ ...f, startDate: e.target.value }))} />
               </Field>
               <Field label="End date">
-                <DateInput value={leaveForm.endDate} onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))} />
+                <DateInput value={leaveForm.endDate} min={leaveForm.startDate || localDate()} onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))} />
               </Field>
             </div>
             <Field label="Reason">

@@ -4,12 +4,13 @@ import { useMemo, useState } from 'react';
 import {
   Plus, Edit2, Trash2, Stethoscope, Clock, User, Heart, Activity,
   ShieldCheck, ClipboardList, FileText, Syringe, Home, Repeat,
-  ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, X, Printer,
+  ChevronDown, ChevronUp, AlertTriangle, AlertCircle, CheckCircle2, X, Printer,
   Calendar, Users, FlaskRound, Pill, ClipboardCheck, BedDouble,
 } from 'lucide-react';
 import Shell from '../components/Shell';
 import { Card, Button, EmptyState, Modal, Field, Input, Select, Textarea, NumberInput, DatePicker, TimeInput, Checkbox, Badge, Tabs } from '../components/ui';
 import { useDB, Surgery, StaffAssignment, EquipmentItem, AnesthesiaVital, RecoveryVital, newId, today } from '../lib/store';
+import { localDateISO, localTimeHHMM, nextQuarterHourHHMM } from '../lib/helpers';
 
 const statuses = ['Scheduled', 'Pre-op', 'In surgery', 'Recovery', 'Completed', 'Cancelled'] as const;
 const procedureTypes = ['Planned', 'Emergency'] as const;
@@ -49,8 +50,8 @@ const blankForm = () => ({
   procedureName: '',
   procedureType: 'Planned' as Surgery['procedureType'],
   category: 'Soft tissue' as Surgery['category'],
-  date: today(),
-  time: '09:00',
+  date: localDateISO(),
+  time: nextQuarterHourHHMM(),
   estimatedDurationMin: 60,
   actualDurationMin: 0,
   status: 'Scheduled' as Surgery['status'],
@@ -97,6 +98,7 @@ export default function SurgeriesPage() {
   const [open, setOpen] = useState(false);
   const [editS, setEditS] = useState<Surgery | null>(null);
   const [form, setForm] = useState(blankForm());
+  const [formError, setFormError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [petFilter, setPetFilter] = useState('all');
@@ -154,6 +156,7 @@ export default function SurgeriesPage() {
 
   const openNew = () => {
     setEditS(null);
+    setFormError('');
     setForm({ ...blankForm(), staff: [{ role: 'Surgeon' as StaffAssignment['role'], staffId: '', staffName: vetNames[0] ?? '' }] });
     setActiveTab('overview');
     setOpen(true);
@@ -161,6 +164,7 @@ export default function SurgeriesPage() {
 
   const openEdit = (s: Surgery) => {
     setEditS(s);
+    setFormError('');
     setForm({
       petId: s.petId, procedureName: s.procedureName, procedureType: s.procedureType, category: s.category,
       date: s.date, time: s.time, estimatedDurationMin: s.estimatedDurationMin, actualDurationMin: s.actualDurationMin,
@@ -183,7 +187,42 @@ export default function SurgeriesPage() {
   };
 
   const saveSurgery = () => {
-    if (!form.petId || !form.procedureName) return;
+    setFormError('');
+    if (!form.petId) {
+      setFormError('Please select a patient.');
+      setActiveTab('overview');
+      return;
+    }
+    if (!form.procedureName?.trim()) {
+      setFormError('Please enter a procedure name.');
+      setActiveTab('overview');
+      return;
+    }
+    const localToday = localDateISO();
+    const localNow = localTimeHHMM();
+    if (form.status === 'Scheduled') {
+      if (form.date < localToday) {
+        setFormError('Cannot schedule a surgery for a past date.');
+        setActiveTab('overview');
+        return;
+      }
+      if (form.date === localToday && form.time < localNow) {
+        setFormError('Cannot select a past time for today.');
+        setActiveTab('overview');
+        return;
+      }
+    }
+    if (form.dischargeDate && form.dischargeDate < form.date) {
+      setFormError('Discharge date cannot be earlier than surgery date.');
+      setActiveTab('overview');
+      return;
+    }
+    if (form.followUpDate && form.followUpDate < form.date) {
+      setFormError('Follow-up date cannot be earlier than surgery date.');
+      setActiveTab('overview');
+      return;
+    }
+
     const pet = petOf(form.petId);
     const ownerId = pet?.ownerId ?? '';
     const surgNum = editS?.surgeryNumber || `SUR-${String(Date.now()).slice(-4)}`;
@@ -542,8 +581,14 @@ export default function SurgeriesPage() {
       )}
 
       {/* Create/Edit modal */}
-      <Modal open={open} onClose={() => { setOpen(false); setEditS(null); }} title={editS ? `Edit ${editS.surgeryNumber}` : 'New surgery'} wide>
+      <Modal open={open} onClose={() => { setOpen(false); setEditS(null); setFormError(''); }} title={editS ? `Edit ${editS.surgeryNumber}` : 'New surgery'} wide>
         <div className="space-y-4">
+          {formError && (
+            <div className="flex items-start gap-2 text-xs font-medium text-coral bg-coral/10 border border-coral/25 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-px" /> {formError}
+            </div>
+          )}
+
           {/* Tabs */}
           <Tabs tabs={tabs} value={activeTab} onChange={setActiveTab} size="sm" className="mb-1" />
 
@@ -578,7 +623,7 @@ export default function SurgeriesPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Field label="Date"><DatePicker value={form.date} onChange={(e) => set('date', e.target.value)} /></Field>
-                <Field label="Time"><TimeInput value={form.time} onChange={(e) => set('time', e.target.value)} /></Field>
+                <Field label="Time"><TimeInput value={form.time} onChange={(e) => set('time', e.target.value)} selectedDate={form.date} /></Field>
                 <Field label="Est. duration (min)"><NumberInput value={String(form.estimatedDurationMin)} onChange={(e) => set('estimatedDurationMin', parseInt(e.target.value) || 0)} /></Field>
                 <Field label="Theater">
                   <Select value={form.theater} onChange={(e) => set('theater', e.target.value)}>
@@ -642,7 +687,7 @@ export default function SurgeriesPage() {
                   {form.consentSigned && (
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Signed by"><Input value={form.consentSignedBy} onChange={(e) => set('consentSignedBy', e.target.value)} placeholder="Owner name" /></Field>
-                      <Field label="Consent date"><DatePicker value={form.consentDate} onChange={(e) => set('consentDate', e.target.value)} /></Field>
+                      <Field label="Consent date"><DatePicker value={form.consentDate} onChange={(e) => set('consentDate', e.target.value)} allowPast /></Field>
                     </div>
                   )}
                   <Field label="Consent notes"><Textarea value={form.consentNotes} onChange={(e) => set('consentNotes', e.target.value)} placeholder="Risks discussed, special instructions…" className="min-h-[50px]" /></Field>
@@ -708,7 +753,7 @@ export default function SurgeriesPage() {
                         <button onClick={() => removeAnesVital(idx)} className="w-6 h-6 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors"><X className="w-3.5 h-3.5" /></button>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                        <TimeInput value={v.time} onChange={(e) => setAnesVital(idx, 'time', e.target.value)} />
+                        <TimeInput value={v.time} onChange={(e) => setAnesVital(idx, 'time', e.target.value)} allowPast />
                         <NumberInput value={v.heartRate ? String(v.heartRate) : ''} onChange={(e) => setAnesVital(idx, 'heartRate', parseInt(e.target.value) || 0)} placeholder="HR" />
                         <NumberInput value={v.respiratoryRate ? String(v.respiratoryRate) : ''} onChange={(e) => setAnesVital(idx, 'respiratoryRate', parseInt(e.target.value) || 0)} placeholder="RR" />
                         <NumberInput value={v.temperatureC ? String(v.temperatureC) : ''} onChange={(e) => setAnesVital(idx, 'temperatureC', parseFloat(e.target.value) || 0)} placeholder="Temp" />
@@ -745,7 +790,7 @@ export default function SurgeriesPage() {
                         <button onClick={() => removeRecVital(idx)} className="w-6 h-6 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors"><X className="w-3.5 h-3.5" /></button>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1.5">
-                        <TimeInput value={v.time} onChange={(e) => setRecVital(idx, 'time', e.target.value)} />
+                        <TimeInput value={v.time} onChange={(e) => setRecVital(idx, 'time', e.target.value)} allowPast />
                         <NumberInput value={v.temperatureC ? String(v.temperatureC) : ''} onChange={(e) => setRecVital(idx, 'temperatureC', parseFloat(e.target.value) || 0)} placeholder="Temp" />
                         <NumberInput value={v.heartRate ? String(v.heartRate) : ''} onChange={(e) => setRecVital(idx, 'heartRate', parseInt(e.target.value) || 0)} placeholder="HR" />
                         <NumberInput value={v.respiratoryRate ? String(v.respiratoryRate) : ''} onChange={(e) => setRecVital(idx, 'respiratoryRate', parseInt(e.target.value) || 0)} placeholder="RR" />
@@ -768,8 +813,8 @@ export default function SurgeriesPage() {
           {activeTab === 'discharge' && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Discharge date"><DatePicker value={form.dischargeDate} onChange={(e) => set('dischargeDate', e.target.value)} /></Field>
-                <Field label="Follow-up date"><DatePicker value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} /></Field>
+                <Field label="Discharge date"><DatePicker value={form.dischargeDate} onChange={(e) => set('dischargeDate', e.target.value)} min={form.date || localDateISO()} /></Field>
+                <Field label="Follow-up date"><DatePicker value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} min={form.date || localDateISO()} /></Field>
               </div>
               <Field label="Discharge summary"><Textarea value={form.dischargeSummary} onChange={(e) => set('dischargeSummary', e.target.value)} placeholder="Summary of procedure, outcome, and patient status at discharge…" className="min-h-[80px]" /></Field>
               <Field label="Home care instructions"><Textarea value={form.homeCareInstructions} onChange={(e) => set('homeCareInstructions', e.target.value)} placeholder="Activity restrictions, feeding, medication schedule, wound care, warning signs…" className="min-h-[80px]" /></Field>

@@ -34,6 +34,16 @@ export function localTimeHHMM(d: Date = new Date()): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** Next 15-minute slot from now in local time, formatted as HH:MM. */
+export function nextQuarterHourHHMM(d: Date = new Date()): string {
+  const currentMinutes = d.getMinutes();
+  const roundedMinutes = Math.ceil((currentMinutes + 1) / 15) * 15;
+  const copy = new Date(d);
+  copy.setMinutes(roundedMinutes, 0, 0);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(copy.getHours())}:${p(copy.getMinutes())}`;
+}
+
 /** Parse `YYYY-MM-DD` as a local date (never UTC). Returns null if malformed. */
 export function parseISODate(iso: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((iso || '').trim());

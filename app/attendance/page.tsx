@@ -121,6 +121,7 @@ export default function AttendancePage() {
               <DateInput
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
+                allowPast
                 className="w-40"
               />
               <Button variant="ghost" size="sm" onClick={() => setFilterDate(localDate())}>Today</Button>

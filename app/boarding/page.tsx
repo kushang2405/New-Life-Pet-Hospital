@@ -222,7 +222,11 @@ export default function BoardingPage() {
   const saveBoard = async () => {
     const errs: Record<string, string> = {};
     if (!isNonEmpty(form.petName) || !form.petId) errs.petId = 'Choose which pet is boarding.';
-    if (!isNonEmpty(form.checkIn)) errs.checkIn = 'A check-in date is required.';
+    if (!isNonEmpty(form.checkIn)) {
+      errs.checkIn = 'A check-in date is required.';
+    } else if (!editPet && form.checkIn < localDateISO()) {
+      errs.checkIn = 'Cannot book boarding for a past check-in date.';
+    }
 
     if (isNonEmpty(form.checkIn) && isNonEmpty(form.checkOut)) {
       const span = daysBetween(form.checkIn, form.checkOut);
@@ -907,7 +911,7 @@ export default function BoardingPage() {
               </div>
 
               <Field label="Actual check-out date" required>
-                <DateInput value={dischargeForm.actualCheckOut} min={dischargeTarget.checkIn} onChange={(e) => setDischargeForm((f) => ({ ...f, actualCheckOut: e.target.value }))} />
+                <DateInput value={dischargeForm.actualCheckOut} min={dischargeTarget.checkIn} allowPast onChange={(e) => setDischargeForm((f) => ({ ...f, actualCheckOut: e.target.value }))} />
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1241,7 +1245,7 @@ export default function BoardingPage() {
 
             {careKind === 'feeding' && (
               <>
-                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} /></Field>
+                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} allowPast /></Field>
                 <Field label="Food" required><Input value={careForm.food} onChange={(e) => setCare('food', e.target.value)} placeholder="Senior kibble" /></Field>
                 <Field label="Amount"><Input value={careForm.amount} onChange={(e) => setCare('amount', e.target.value)} placeholder="200 g" /></Field>
               </>
@@ -1249,7 +1253,7 @@ export default function BoardingPage() {
 
             {careKind === 'medication' && (
               <>
-                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} /></Field>
+                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} allowPast /></Field>
                 <Field label="Medication" required><Input value={careForm.medication} onChange={(e) => setCare('medication', e.target.value)} placeholder="Meloxicam" /></Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Dose"><Input value={careForm.dose} onChange={(e) => setCare('dose', e.target.value)} placeholder="1.5 mg" /></Field>
@@ -1264,7 +1268,7 @@ export default function BoardingPage() {
 
             {careKind === 'walking' && (
               <>
-                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} /></Field>
+                <Field label="Time" required><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} allowPast /></Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Duration (min)" required>
                     <NumberInput min={5} step={5} value={String(careForm.durationMin)} onChange={(e) => setCare('durationMin', numMin(e.target.value, 0))} />
@@ -1281,8 +1285,8 @@ export default function BoardingPage() {
             {careKind === 'health' && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Date" required><DateInput value={careForm.date} onChange={(e) => setCare('date', e.target.value)} /></Field>
-                  <Field label="Time"><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} /></Field>
+                  <Field label="Date" required><DateInput value={careForm.date} onChange={(e) => setCare('date', e.target.value)} allowPast /></Field>
+                  <Field label="Time"><TimeInput value={careForm.time} onChange={(e) => setCare('time', e.target.value)} allowPast /></Field>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <Field label="Temp (°C)"><NumberInput min={0} step={0.1} value={String(careForm.temperatureC)} onChange={(e) => setCare('temperatureC', numMin(e.target.value, 0))} /></Field>
@@ -1315,7 +1319,7 @@ export default function BoardingPage() {
 
             {careKind === 'photo' && (
               <>
-                <Field label="Date"><DateInput value={careForm.date} onChange={(e) => setCare('date', e.target.value)} /></Field>
+                <Field label="Date"><DateInput value={careForm.date} onChange={(e) => setCare('date', e.target.value)} allowPast /></Field>
                 <ImagePicker label="Photo" value={careForm.url} onChange={(e) => setCare('url', e.target.value)} aspect="aspect-[4/3]" hint="Upload from the kennel tablet, or paste a link." />
                 <Field label="Caption"><Input value={careForm.caption} onChange={(e) => setCare('caption', e.target.value)} placeholder="Morning play session" /></Field>
               </>

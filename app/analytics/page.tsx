@@ -655,11 +655,11 @@ export default function AnalyticsPage() {
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wide text-ink/50 font-semibold">From date</label>
-            <DatePicker value={fromDate} onChange={(e) => setFromDate(e.target.value)} placeholder="From" max={toDate || undefined} />
+            <DatePicker value={fromDate} onChange={(e) => setFromDate(e.target.value)} placeholder="From" max={toDate || undefined} allowPast />
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wide text-ink/50 font-semibold">To date</label>
-            <DatePicker value={toDate} onChange={(e) => setToDate(e.target.value)} placeholder="To" min={fromDate || undefined} />
+            <DatePicker value={toDate} onChange={(e) => setToDate(e.target.value)} placeholder="To" min={fromDate || undefined} allowPast />
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wide text-ink/50 font-semibold">Doctor</label>

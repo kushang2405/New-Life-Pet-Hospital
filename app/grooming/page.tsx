@@ -16,7 +16,7 @@ import {
   newId,
 } from '../lib/store';
 import {
-  localDateISO, num, numMin, round2, isZeroMoney, nextDocNumber, confirmDelete, isNonEmpty,
+  localDateISO, localTimeHHMM, nextQuarterHourHHMM, num, numMin, round2, isZeroMoney, nextDocNumber, confirmDelete, isNonEmpty,
 } from '../lib/helpers';
 import { useSettings, formatMoney, formatDate, prefixFor } from '../lib/settings';
 
@@ -104,7 +104,7 @@ const blankPhoto = (type: 'before' | 'after'): GroomingPhoto => ({ id: '', type,
 const blankForm = () => ({
   appointmentNumber: '', petName: '', owner: '', ownerId: '', petId: '',
   groomer: '', date: localDateISO(),
-  time: '10:00', durationMin: 60, status: 'Scheduled' as GroomingAppt['status'],
+  time: nextQuarterHourHHMM(), durationMin: 60, status: 'Scheduled' as GroomingAppt['status'],
   services: [] as GroomingServiceItem[], packageId: '', packageName: '',
   notes: '', groomingNotes: '', productsUsed: [] as GroomingProduct[],
   beforePhotos: [] as GroomingPhoto[], afterPhotos: [] as GroomingPhoto[],
@@ -369,8 +369,26 @@ export default function GroomingPage() {
     const errs: Record<string, string> = {};
     if (!form.petId || !isNonEmpty(form.petName)) errs.petId = 'Choose which pet is being groomed.';
     if (!isNonEmpty(form.groomer)) errs.groomer = 'Assign a groomer.';
-    if (!isNonEmpty(form.date)) errs.date = 'Pick a date.';
-    if (!isNonEmpty(form.time)) errs.time = 'Pick a time.';
+
+    const localToday = localDateISO();
+    const localNow = localTimeHHMM();
+
+    if (!isNonEmpty(form.date)) {
+      errs.date = 'Pick a date.';
+    } else if (form.date < localToday) {
+      errs.date = 'Cannot book an appointment for a past date.';
+    }
+
+    if (!isNonEmpty(form.time)) {
+      errs.time = 'Pick a time.';
+    } else if (form.date === localToday && form.time < localNow) {
+      errs.time = 'Cannot select a past time for today.';
+    }
+
+    if (form.nextGroomingDate && form.nextGroomingDate < (form.date || localToday)) {
+      errs.nextGroomingDate = 'Next grooming date cannot be earlier than appointment date.';
+    }
+
     setFieldErr(errs);
     if (Object.keys(errs).length > 0) {
       setFormError('Please fix the highlighted fields before saving.');
@@ -823,7 +841,7 @@ export default function GroomingPage() {
                 <DateInput value={form.date} onChange={(e) => set('date', e.target.value)} error={!!fieldErr.date} />
               </Field>
               <Field label="Time" required error={fieldErr.time}>
-                <TimeInput value={form.time} onChange={(e) => set('time', e.target.value)} error={!!fieldErr.time} />
+                <TimeInput value={form.time} onChange={(e) => set('time', e.target.value)} selectedDate={form.date} error={!!fieldErr.time} />
               </Field>
               <Field label="Duration (min)">
                 <NumberInput min={0} step={15} value={String(form.durationMin)} onChange={(e) => set('durationMin', numMin(e.target.value, 0))} />
@@ -936,7 +954,9 @@ export default function GroomingPage() {
                   <option value="Phone">Phone</option>
                 </Select>
               </Field>
-              <Field label="Next Grooming Date"><DateInput value={form.nextGroomingDate} onChange={(e) => set('nextGroomingDate', e.target.value)} /></Field>
+              <Field label="Next Grooming Date" error={fieldErr.nextGroomingDate}>
+                <DateInput value={form.nextGroomingDate} onChange={(e) => set('nextGroomingDate', e.target.value)} min={form.date || localDateISO()} error={!!fieldErr.nextGroomingDate} />
+              </Field>
             </div>
 
             {/* Feedback — only meaningful once the session is done */}

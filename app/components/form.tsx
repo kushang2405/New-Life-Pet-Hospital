@@ -478,7 +478,8 @@ function monthGrid(view: Date): (Date | null)[] {
 }
 
 export function DatePicker({
-  value, onChange, defaultValue, min, max, placeholder = 'Pick a date', disabled, error, clearable = true, className = '',
+  value, onChange, defaultValue, min, max, placeholder = 'Pick a date', disabled, error, clearable = true,
+  disablePast = true, allowPast = false, className = '',
 }: {
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -489,6 +490,8 @@ export function DatePicker({
   disabled?: boolean;
   error?: boolean;
   clearable?: boolean;
+  disablePast?: boolean;
+  allowPast?: boolean;
   className?: string;
 }) {
   const [val, emit] = useStringValue<React.ChangeEvent<HTMLInputElement>>(value, defaultValue, onChange);
@@ -505,12 +508,27 @@ export function DatePicker({
     if (open) { setView(parseISO(val) ?? new Date()); setMode('days'); }
   }, [open, val]);
 
-  const today = new Date();
-  const minD = parseISO(min || '');
-  const maxD = parseISO(max || '');
-  const blocked = (d: Date) =>
-    (minD && d < new Date(minD.getFullYear(), minD.getMonth(), minD.getDate())) ||
-    (maxD && d > new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate()));
+  const today = useMemo(() => new Date(), [open]);
+  const todayMidnight = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+    [today],
+  );
+
+  const effectiveMinD = useMemo(() => {
+    const parsedMin = parseISO(min || '');
+    if (allowPast || !disablePast) return parsedMin;
+    if (!parsedMin) return todayMidnight;
+    return parsedMin.getTime() < todayMidnight.getTime() ? todayMidnight : parsedMin;
+  }, [min, allowPast, disablePast, todayMidnight]);
+
+  const maxD = useMemo(() => parseISO(max || ''), [max]);
+
+  const blocked = useCallback((d: Date) => {
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    if (effectiveMinD && dayStart < effectiveMinD.getTime()) return true;
+    if (maxD && dayStart > new Date(maxD.getFullYear(), maxD.getMonth(), maxD.getDate()).getTime()) return true;
+    return false;
+  }, [effectiveMinD, maxD]);
 
   const commit = (d: Date) => {
     if (blocked(d)) return;
@@ -524,7 +542,44 @@ export function DatePicker({
 
   const cells = monthGrid(view);
   const yearPage = Math.floor(view.getFullYear() / 12) * 12;
+
+  const prevDisabled = useMemo(() => {
+    if (!effectiveMinD) return false;
+    if (mode === 'days') {
+      const prevMonthEnd = new Date(view.getFullYear(), view.getMonth(), 0);
+      return prevMonthEnd.getTime() < effectiveMinD.getTime();
+    }
+    if (mode === 'months') {
+      const prevYearEnd = new Date(view.getFullYear() - 1, 11, 31);
+      return prevYearEnd.getTime() < effectiveMinD.getTime();
+    }
+    if (mode === 'years') {
+      const prevDecadeEnd = new Date(yearPage - 1, 11, 31);
+      return prevDecadeEnd.getTime() < effectiveMinD.getTime();
+    }
+    return false;
+  }, [effectiveMinD, mode, view, yearPage]);
+
+  const nextDisabled = useMemo(() => {
+    if (!maxD) return false;
+    if (mode === 'days') {
+      const nextMonthStart = new Date(view.getFullYear(), view.getMonth() + 1, 1);
+      return nextMonthStart.getTime() > maxD.getTime();
+    }
+    if (mode === 'months') {
+      const nextYearStart = new Date(view.getFullYear() + 1, 0, 1);
+      return nextYearStart.getTime() > maxD.getTime();
+    }
+    if (mode === 'years') {
+      const nextDecadeStart = new Date(yearPage + 12, 0, 1);
+      return nextDecadeStart.getTime() > maxD.getTime();
+    }
+    return false;
+  }, [maxD, mode, view, yearPage]);
+
   const stepView = (dir: 1 | -1) => {
+    if (dir === -1 && prevDisabled) return;
+    if (dir === 1 && nextDisabled) return;
     if (mode === 'days') setView(new Date(view.getFullYear(), view.getMonth() + dir, 1));
     else if (mode === 'months') setView(new Date(view.getFullYear() + dir, view.getMonth(), 1));
     else setView(new Date(view.getFullYear() + dir * 12, view.getMonth(), 1));
@@ -556,8 +611,11 @@ export function DatePicker({
           <div className="flex items-center gap-1.5 mb-2.5">
             <button
               type="button"
+              disabled={prevDisabled}
               onClick={() => stepView(-1)}
-              className="hv-icon w-7 h-7 rounded-lg flex items-center justify-center text-ink/50 hover:bg-lilac hover:text-plum shrink-0"
+              className={`hv-icon w-7 h-7 rounded-lg flex items-center justify-center text-ink/50 hover:bg-lilac hover:text-plum shrink-0 ${
+                prevDisabled ? 'opacity-25 cursor-not-allowed hover:bg-transparent hover:text-ink/50' : ''
+              }`}
               aria-label="Previous"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -575,8 +633,11 @@ export function DatePicker({
 
             <button
               type="button"
+              disabled={nextDisabled}
               onClick={() => stepView(1)}
-              className="hv-icon w-7 h-7 rounded-lg flex items-center justify-center text-ink/50 hover:bg-lilac hover:text-plum shrink-0"
+              className={`hv-icon w-7 h-7 rounded-lg flex items-center justify-center text-ink/50 hover:bg-lilac hover:text-plum shrink-0 ${
+                nextDisabled ? 'opacity-25 cursor-not-allowed hover:bg-transparent hover:text-ink/50' : ''
+              }`}
               aria-label="Next"
             >
               <ChevronRight className="w-4 h-4" />
@@ -604,7 +665,7 @@ export function DatePicker({
                       onClick={() => commit(d)}
                       className={`h-8 rounded-lg text-xs font-medium tabular-nums transition-all duration-150
                         ${isSel ? 'bg-plum text-white shadow-lift-sm font-semibold'
-                          : off ? 'text-ink/20 cursor-not-allowed'
+                          : off ? 'text-ink/20 cursor-not-allowed opacity-40'
                           : isToday ? 'text-plum font-bold bg-lilac/60 hover:bg-lilac'
                           : 'text-ink/75 hover:bg-lilac hover:text-plum'}`}
                     >
@@ -621,13 +682,17 @@ export function DatePicker({
               {MONTHS.map((m, i) => {
                 const sel = selected && selected.getFullYear() === view.getFullYear() && selected.getMonth() === i;
                 const isCur = today.getFullYear() === view.getFullYear() && today.getMonth() === i;
+                const monthEnd = new Date(view.getFullYear(), i + 1, 0);
+                const isBlocked = effectiveMinD && monthEnd.getTime() < effectiveMinD.getTime();
                 return (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => { setView(new Date(view.getFullYear(), i, 1)); setMode('days'); }}
+                    disabled={!!isBlocked}
+                    onClick={() => { if (!isBlocked) { setView(new Date(view.getFullYear(), i, 1)); setMode('days'); } }}
                     className={`h-9 rounded-lg text-xs font-medium transition-all duration-150
                       ${sel ? 'bg-plum text-white font-semibold'
+                        : isBlocked ? 'text-ink/20 cursor-not-allowed opacity-40'
                         : isCur ? 'text-plum font-bold bg-lilac/60 hover:bg-lilac'
                         : 'text-ink/75 hover:bg-lilac hover:text-plum'}`}
                   >
@@ -643,13 +708,17 @@ export function DatePicker({
               {Array.from({ length: 12 }, (_, i) => yearPage + i).map((y) => {
                 const sel = selected && selected.getFullYear() === y;
                 const isCur = today.getFullYear() === y;
+                const yearEnd = new Date(y, 11, 31);
+                const isBlocked = effectiveMinD && yearEnd.getTime() < effectiveMinD.getTime();
                 return (
                   <button
                     key={y}
                     type="button"
-                    onClick={() => { setView(new Date(y, view.getMonth(), 1)); setMode('months'); }}
+                    disabled={!!isBlocked}
+                    onClick={() => { if (!isBlocked) { setView(new Date(y, view.getMonth(), 1)); setMode('months'); } }}
                     className={`h-9 rounded-lg text-xs font-medium tabular-nums transition-all duration-150
                       ${sel ? 'bg-plum text-white font-semibold'
+                        : isBlocked ? 'text-ink/20 cursor-not-allowed opacity-40'
                         : isCur ? 'text-plum font-bold bg-lilac/60 hover:bg-lilac'
                         : 'text-ink/75 hover:bg-lilac hover:text-plum'}`}
                   >
@@ -664,8 +733,11 @@ export function DatePicker({
           <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-line">
             <button
               type="button"
+              disabled={blocked(today)}
               onClick={() => commit(today)}
-              className="text-[11px] font-semibold text-plum hover:text-grape transition-colors px-2 py-1 rounded-md hover:bg-lilac"
+              className={`text-[11px] font-semibold text-plum hover:text-grape transition-colors px-2 py-1 rounded-md hover:bg-lilac ${
+                blocked(today) ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''
+              }`}
             >
               Today
             </button>
@@ -702,7 +774,9 @@ function pretty12h(hhmm: string): string {
 }
 
 export function TimeInput({
-  value, onChange, defaultValue, step = 15, min = '00:00', max = '23:59', disabled, error, className = '',
+  value, onChange, defaultValue, step = 15, min = '00:00', max = '23:59',
+  selectedDate, disablePast = true, allowPast = false,
+  disabled, error, className = '',
 }: {
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -710,6 +784,9 @@ export function TimeInput({
   step?: number;
   min?: string;
   max?: string;
+  selectedDate?: string;
+  disablePast?: boolean;
+  allowPast?: boolean;
   disabled?: boolean;
   error?: boolean;
   className?: string;
@@ -723,14 +800,36 @@ export function TimeInput({
   const dropUp = useDropDirection(open, triggerRef, 260);
 
   const slots = useMemo(() => {
-    const toMin = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
-    const lo = toMin(min), hi = toMin(max);
+    const toMin = (s: string) => {
+      const [h, m] = (s || '00:00').split(':').map(Number);
+      return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+    };
+    let lo = toMin(min);
+    const hi = toMin(max);
+
+    if (!allowPast && disablePast) {
+      const todayISO = toISO(new Date());
+      const isFutureDate = selectedDate && selectedDate > todayISO;
+      const isPastDate = selectedDate && selectedDate < todayISO;
+
+      if (isPastDate) {
+        return [];
+      }
+
+      if (!isFutureDate) {
+        const now = new Date();
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const roundedNow = Math.ceil(nowMinutes / step) * step;
+        lo = Math.max(lo, roundedNow);
+      }
+    }
+
     const out: string[] = [];
     for (let m = lo; m <= hi; m += step) {
       out.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
     }
     return out;
-  }, [step, min, max]);
+  }, [step, min, max, selectedDate, disablePast, allowPast, open]);
 
   useEffect(() => {
     if (!open || !listRef.current) return;
@@ -757,21 +856,27 @@ export function TimeInput({
           className={`absolute z-[70] left-0 right-0 min-w-full max-h-56 overflow-y-auto bg-white rounded-xl border border-line shadow-[0_16px_40px_-8px_rgba(26,13,46,0.22)] py-1 animate-popIn
             ${dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
         >
-          {slots.map((s) => {
-            const isSel = s === val;
-            return (
-              <div
-                key={s}
-                data-sel={isSel}
-                onClick={() => { emit(s); close(); }}
-                className={`mx-1 px-2.5 py-1.5 rounded-lg text-sm tabular-nums cursor-pointer transition-colors duration-150 flex items-center justify-between
-                  ${isSel ? 'bg-plum text-white font-semibold' : 'text-ink/80 hover:bg-lilac hover:text-plum'}`}
-              >
-                {pretty12h(s)}
-                {isSel && <Check className="w-3.5 h-3.5" />}
-              </div>
-            );
-          })}
+          {slots.length === 0 ? (
+            <div className="px-3 py-5 text-center text-xs text-ink/40">
+              No available times remaining for selected date
+            </div>
+          ) : (
+            slots.map((s) => {
+              const isSel = s === val;
+              return (
+                <div
+                  key={s}
+                  data-sel={isSel}
+                  onClick={() => { emit(s); close(); }}
+                  className={`mx-1 px-2.5 py-1.5 rounded-lg text-sm tabular-nums cursor-pointer transition-colors duration-150 flex items-center justify-between
+                    ${isSel ? 'bg-plum text-white font-semibold' : 'text-ink/80 hover:bg-lilac hover:text-plum'}`}
+                >
+                  {pretty12h(s)}
+                  {isSel && <Check className="w-3.5 h-3.5" />}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
     </div>

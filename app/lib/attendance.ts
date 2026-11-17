@@ -2,16 +2,16 @@ import { authFetch } from './auth';
 import type { LeaveRequest, Staff } from './api';
 
 // Actual hospital location (commented for testing):
+export const HOSPITAL_LOCATION = {
+  latitude: 21.2052,
+  longitude: 72.8374,
+  radiusMeters: 300,
+};
 // export const HOSPITAL_LOCATION = {
-//   latitude: 21.2052,
-//   longitude: 72.8374,
+//   latitude: 21.1528,
+//   longitude: 72.8310,
 //   radiusMeters: 150,
 // };
-export const HOSPITAL_LOCATION = {
-  latitude: 21.1528,
-  longitude: 72.8310,
-  radiusMeters: 150,
-};
 
 export const LEAVE_TYPES: LeaveRequest['type'][] = [
   'Annual', 'Sick', 'Personal', 'Maternity', 'Paternity', 'Bereavement', 'Unpaid', 'Compensatory',

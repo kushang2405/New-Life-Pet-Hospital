@@ -707,7 +707,7 @@ export default function BillingPage() {
               </Select>
             </Field>
             <Field label="Date">
-              <DateInput value={invForm.date} onChange={(e) => setInv('date', e.target.value)} />
+              <DateInput value={invForm.date} onChange={(e) => setInv('date', e.target.value)} allowPast />
             </Field>
             <Field label="Due date">
               <DateInput value={invForm.dueDate} onChange={(e) => setInv('dueDate', e.target.value)} min={invForm.date} />
@@ -970,7 +970,7 @@ export default function BillingPage() {
               <Input value={expForm.number} onChange={(e) => setExp('number', e.target.value)} />
             </Field>
             <Field label="Date">
-              <DateInput value={expForm.date} onChange={(e) => setExp('date', e.target.value)} />
+              <DateInput value={expForm.date} onChange={(e) => setExp('date', e.target.value)} allowPast />
             </Field>
             <Field label="Category">
               <Select value={expForm.category} onChange={(e) => setExp('category', e.target.value)}>
