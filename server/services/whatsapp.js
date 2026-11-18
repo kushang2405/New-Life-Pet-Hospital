@@ -183,8 +183,53 @@ async function sendDocumentTemplate(to, { templateName, pdfBuffer, filename, bod
   return response;
 }
 
-async function sendAppointmentReminder(to, parameters) {
-  const templateName = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h';
+let cachedReminderTemplate = null;
+let cacheReminderExpiry = 0;
+
+async function resolveReminderTemplate() {
+  if (process.env.WHATSAPP_REMINDER_TEMPLATE_NAME && process.env.WHATSAPP_REMINDER_TEMPLATE_NAME !== 'appointment_reminder_24h') {
+    return process.env.WHATSAPP_REMINDER_TEMPLATE_NAME;
+  }
+
+  const now = Date.now();
+  if (cachedReminderTemplate && now < cacheReminderExpiry) {
+    return cachedReminderTemplate;
+  }
+
+  try {
+    const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    const res = await graphRequest(`/${wabaId}/message_templates?name=appointment_reminder&fields=name,status,language`);
+    const matches = (res.data || []).filter((t) => t.name === 'appointment_reminder');
+    const isApproved = matches.some((m) => m.status === 'APPROVED' || m.status === 'ACTIVE');
+    if (isApproved) {
+      cachedReminderTemplate = 'appointment_reminder';
+      cacheReminderExpiry = now + 60 * 1000;
+      return 'appointment_reminder';
+    }
+  } catch {}
+
+  cachedReminderTemplate = 'appointment_reminder_24h';
+  cacheReminderExpiry = now + 60 * 1000;
+  return 'appointment_reminder_24h';
+}
+
+async function sendAppointmentReminder(to, parameters, timing = null) {
+  const templateName = await resolveReminderTemplate();
+
+  let finalParameters = parameters;
+  if (templateName === 'appointment_reminder') {
+    // Dynamic template: "Hello {{1}}, this is a reminder that {{2}} has an appointment {{3}}..."
+    // {{3}} is dynamic: "today at 5:00 PM" or "tomorrow at 10:30 AM"
+    const label = timing?.fullLabel || parameters[2] || 'soon';
+    finalParameters = [parameters[0], parameters[1], label];
+  } else {
+    // Legacy 24h template: "Hello {{1}}, this is a reminder that {{2}} has an appointment tomorrow, {{3}}..."
+    // {{3}} is time only: "at 10:30 AM"
+    let timeLabel = timing?.timeOnly || parameters[2] || 'soon';
+    timeLabel = String(timeLabel).replace(/^(today|tomorrow)\s*/i, '');
+    finalParameters = [parameters[0], parameters[1], timeLabel || 'soon'];
+  }
+
   const payloadBuilder = (lang) => ({
     to,
     type: 'template',
@@ -195,7 +240,7 @@ async function sendAppointmentReminder(to, parameters) {
       components: [
         {
           type: 'body',
-          parameters: parameters.map((text) => ({ type: 'text', text: String(text || '—') })),
+          parameters: finalParameters.map((text) => ({ type: 'text', text: String(text || '—') })),
         },
       ],
     },
@@ -234,7 +279,8 @@ async function checkTemplatesStatus() {
   }
 
   const expected = [
-    { key: 'reminder', name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h' },
+    { key: 'reminder_24h', name: process.env.WHATSAPP_REMINDER_TEMPLATE_NAME || 'appointment_reminder_24h' },
+    { key: 'reminder_dynamic', name: 'appointment_reminder' },
     { key: 'report', name: process.env.WHATSAPP_REPORT_TEMPLATE_NAME || 'pet_report' },
     { key: 'certificate', name: process.env.WHATSAPP_CERTIFICATE_TEMPLATE_NAME || 'pet_certificate' },
   ];
@@ -277,6 +323,7 @@ module.exports = {
   sendPdfDocument,
   sendDocumentTemplate,
   sendAppointmentReminder,
+  resolveReminderTemplate,
   checkTemplatesStatus,
   verifyWebhookSignature,
 };

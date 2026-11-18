@@ -2,7 +2,7 @@ const Appointment = require('../models/Appointment');
 const Owner = require('../models/Owner');
 const Pet = require('../models/Pet');
 const Config = require('../models/Config');
-const { normalizePhone, sendAppointmentReminder } = require('./whatsapp');
+const { normalizePhone, sendAppointmentReminder, resolveReminderTemplate } = require('./whatsapp');
 
 const LEAD_MS = 24 * 60 * 60 * 1000;
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -34,9 +34,15 @@ function appointmentStart(appt) {
   return new Date(`${appt.date}T${timeStr}:00+05:30`);
 }
 
-function formatTimeLabel(appt) {
+function getAppointmentTiming(appt, now = new Date()) {
+  const todayKey = localDateKey(now);
+  const tomorrowKey = localDateKey(new Date(now.getTime() + 86400000));
+  const apptDateKey = appt?.date || '';
+  const isToday = apptDateKey === todayKey;
+  const isTomorrow = apptDateKey === tomorrowKey;
+
   let timeStr = (appt?.time || '').trim();
-  if (!timeStr) return 'tomorrow';
+  let timeOnly = '';
   const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
   if (match) {
     let hours = parseInt(match[1], 10);
@@ -46,9 +52,23 @@ function formatTimeLabel(appt) {
       if (hours > 12) hours -= 12;
       else if (hours === 0) hours = 12;
     }
-    return `at ${hours}:${mins} ${ampm}`;
+    timeOnly = `at ${hours}:${mins} ${ampm}`;
+  } else if (timeStr) {
+    timeOnly = `at ${timeStr}`;
   }
-  return `at ${timeStr}`;
+
+  const fullLabel = isToday
+    ? `today${timeOnly ? ' ' + timeOnly : ''}`
+    : isTomorrow
+    ? `tomorrow${timeOnly ? ' ' + timeOnly : ''}`
+    : `on ${apptDateKey}${timeOnly ? ' ' + timeOnly : ''}`;
+
+  return {
+    isToday,
+    isTomorrow,
+    timeOnly: timeOnly || 'soon',
+    fullLabel,
+  };
 }
 
 async function sendDueReminders(source = 'manual', now = new Date()) {
@@ -56,13 +76,19 @@ async function sendDueReminders(source = 'manual', now = new Date()) {
   const windowEnd = new Date(now.getTime() + LEAD_MS);
   const dateKeys = [0, 1, 2].map((offset) => localDateKey(new Date(now.getTime() + offset * 86400000)));
 
+  // Exclude Walk-in and Emergency appointments from candidate query
   const candidates = await Appointment.find({
     date: { $in: dateKeys },
     status: { $in: PENDING_STATUSES },
+    bookingType: { $nin: ['Walk-in', 'Emergency', 'walk-in', 'emergency'] },
     reminderSentAt: null,
   }).lean();
 
   const due = candidates.filter((appt) => {
+    // Strictly exclude Walk-in and Emergency appointments
+    const bt = (appt.bookingType || '').toLowerCase().trim();
+    if (bt === 'walk-in' || bt === 'emergency') return false;
+
     const start = appointmentStart(appt).getTime();
     return !isNaN(start) && start > now.getTime() && start <= windowEnd.getTime();
   });
@@ -72,7 +98,6 @@ async function sendDueReminders(source = 'manual', now = new Date()) {
   for (const appt of due) {
     try {
       // Atomic Lock: Atomically claim the appointment if reminderSentAt is still null.
-      // This strictly prevents duplicate sends even if the VPS cronjob and a manual trigger overlap.
       const claimed = await Appointment.findOneAndUpdate(
         { _id: appt._id, reminderSentAt: null },
         {
@@ -84,7 +109,6 @@ async function sendDueReminders(source = 'manual', now = new Date()) {
         { returnDocument: 'after' },
       );
       if (!claimed) {
-        // Another process already claimed or sent this reminder
         continue;
       }
 
@@ -103,12 +127,23 @@ async function sendDueReminders(source = 'manual', now = new Date()) {
         errors.push(`${owner?.name || 'An owner'} has no phone number`);
         continue;
       }
-      const timeLabel = formatTimeLabel(appt);
-      const message = await sendAppointmentReminder(to, [
-        owner?.name || 'Pet Parent',
-        pet?.name || 'your pet',
-        timeLabel,
-      ]);
+
+      const timing = getAppointmentTiming(appt, now);
+      const activeTemplate = await resolveReminderTemplate();
+
+      // If appointment is today, and the only available template literally says "tomorrow" (appointment_reminder_24h):
+      // Do NOT send "tomorrow" for an appointment that is today, as that misleads the client.
+      if (timing.isToday && activeTemplate === 'appointment_reminder_24h') {
+        console.log(`[reminders] Skipping appointment ${appt._id} for today: active template '${activeTemplate}' says 'tomorrow'. Awaiting dynamic template approval.`);
+        await Appointment.updateOne({ _id: appt._id }, { $set: { reminderSentAt: null, whatsappStatus: '' } });
+        continue;
+      }
+
+      const message = await sendAppointmentReminder(
+        to,
+        [owner?.name || 'Pet Parent', pet?.name || 'your pet', timing.fullLabel],
+        timing,
+      );
       await Appointment.updateOne(
         { _id: appt._id },
         {

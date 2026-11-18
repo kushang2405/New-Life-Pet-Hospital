@@ -172,6 +172,10 @@ export type Appointment = {
   recurrencePattern: 'None' | 'Weekly' | 'Bi-weekly' | 'Monthly';
   followUpDate: string;
   followUpReminder: boolean;
+  reminderSentAt?: string | null;
+  whatsappMessageId?: string;
+  whatsappStatus?: string;
+  whatsappError?: string;
   notes: string;
 };
 

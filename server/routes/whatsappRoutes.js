@@ -176,7 +176,15 @@ router.post(
     const dateTime = req.body?.dateTime || 'tomorrow at 10:30 AM';
 
     try {
-      const response = await sendAppointmentReminder(to, [ownerName, petName, dateTime]);
+      const isToday = /today/i.test(dateTime);
+      const isTomorrow = /tomorrow/i.test(dateTime);
+      const timing = {
+        isToday,
+        isTomorrow,
+        fullLabel: dateTime,
+        timeOnly: dateTime.replace(/^(today|tomorrow)\s*/i, '') || dateTime,
+      };
+      const response = await sendAppointmentReminder(to, [ownerName, petName, dateTime], timing);
       res.json({ success: true, messageId: response.messages?.[0]?.id, to });
     } catch (err) {
       if (err.code === 132000 || err.code === 132001) {

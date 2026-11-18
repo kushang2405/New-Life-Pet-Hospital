@@ -227,21 +227,24 @@ export default function AppointmentsPage() {
     }
 
     const t = form.date === today() ? nextToken : 1;
+    const isWalkInOrEmergency = form.bookingType === 'Walk-in' || form.bookingType === 'Emergency';
     if (editAppt) {
       update('appointments', editAppt.id, {
         petId: pet.id, ownerId: pet.ownerId, service: form.service, date: form.date,
         time: form.time, durationMin: parseInt(form.durationMin) || 30,
         bookingType: form.bookingType, followUpDate: form.followUpDate,
         followUpReminder: form.followUpReminder,
+        ...(isWalkInOrEmergency ? { reminderSentAt: new Date().toISOString() } : {}),
       });
     } else {
       create('appointments', {
         id: newId('apt'), petId: pet.id, ownerId: pet.ownerId, vet: '', service: form.service,
         date: form.date, time: form.time, durationMin: parseInt(form.durationMin) || 30,
-        status: form.bookingType === 'Emergency' ? 'Checked-in' : 'Scheduled',
+        status: isWalkInOrEmergency ? 'Checked-in' : 'Scheduled',
         reason: '', bookingType: form.bookingType, tokenNumber: t,
         queuePosition: 0, isRecurring: false, recurrencePattern: 'None',
         followUpDate: form.followUpDate, followUpReminder: form.followUpReminder, notes: '',
+        reminderSentAt: isWalkInOrEmergency ? new Date().toISOString() : null,
       });
     }
     setOpen(false);
