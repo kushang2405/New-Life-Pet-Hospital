@@ -2,7 +2,7 @@
 
 import { useState, useRef, type ChangeEvent } from 'react';
 import {
-  Palette, Percent, Check, Sun, Moon, Building, Save, AlertCircle, DollarSign,
+  Palette, Check, Sun, Moon, Building, Save, AlertCircle, DollarSign,
 } from 'lucide-react';
 import Shell from '../components/Shell';
 import { Card, SectionTitle, Button, Tabs } from '../components/ui';
@@ -10,7 +10,7 @@ import { Input, Select, Switch, ColorInput } from '../components/form';
 import { useSettings, CURRENCY_SYMBOLS, type ClinicSettings } from '../lib/settings';
 import { confirmAction } from '../lib/helpers';
 
-type Tab = 'branding' | 'themes' | 'currencies' | 'taxes';
+type Tab = 'branding' | 'themes' | 'currencies';
 
 export default function SettingsPage() {
   const { settings, update: applySettings, reset: resetSettings } = useSettings();
@@ -72,7 +72,6 @@ export default function SettingsPage() {
     { key: 'branding', label: 'Branding', icon: Palette },
     { key: 'themes', label: 'Themes', icon: Sun },
     { key: 'currencies', label: 'Currencies', icon: DollarSign },
-    { key: 'taxes', label: 'Taxes', icon: Percent },
   ];
 
   const labelCls = 'text-[11px] font-medium text-ink/60 uppercase tracking-wide';
@@ -219,50 +218,6 @@ export default function SettingsPage() {
                   checked={current.currency === code}
                   onChange={(on) => { if (on) { set('currency', code); set('currencySymbol', symbol); } }}
                 />
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {tab === 'taxes' && (
-        <Card className="p-5">
-          <SectionTitle title="Tax configuration" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <label className="block">
-              <span className={labelCls}>Default tax rate (%)</span>
-              <Input className="mt-1" value={current.taxRate} onChange={(e) => set('taxRate', e.target.value)} />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Tax ID / VAT number</span>
-              <Input className="mt-1" value={current.taxId} onChange={(e) => set('taxId', e.target.value)} />
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-xl border border-line cursor-pointer hover:bg-canvas transition-colors mb-6">
-            <div><div className="text-sm font-medium text-ink">Tax-inclusive pricing</div><div className="text-[11px] text-ink/50">Show prices with tax already included</div></div>
-            <Switch checked={current.taxInclusive} onChange={(v) => set('taxInclusive', v)} />
-          </div>
-
-          <h4 className="text-sm font-semibold text-ink mb-3 mt-6 pt-6 border-t border-line">Tax brackets by service</h4>
-          <div className="space-y-2">
-            {[
-              { service: 'Consultation', rate: '8.5%', exempt: false },
-              { service: 'Surgery', rate: '8.5%', exempt: false },
-              { service: 'Vaccination', rate: '0%', exempt: true },
-              { service: 'Pharmacy / Medication', rate: '8.5%', exempt: false },
-              { service: 'Grooming', rate: '8.5%', exempt: false },
-              { service: 'Boarding', rate: '12%', exempt: false },
-              { service: 'Product sales', rate: '8.5%', exempt: false },
-            ].map((t) => (
-              <div key={t.service} className="flex items-center gap-3 p-3 rounded-xl border border-line">
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-ink">{t.service}</div>
-                </div>
-                {t.exempt && <span className="text-[10px] px-2 py-0.5 rounded-full bg-lilac text-plum">Tax exempt</span>}
-                <div className="w-20 text-right">
-                  <Input className="text-right" defaultValue={t.rate} />
-                </div>
               </div>
             ))}
           </div>
