@@ -115,6 +115,31 @@ class BioParsingTest(unittest.TestCase):
         self.assertEqual(rows[0]['referenceRange'], '0.2-1.2')
         self.assertEqual(rows[0]['unit'], '')
 
+    def test_handles_sidebar_and_action_buttons_without_dropping_rows(self):
+        detections = [
+            det('Reports', 95, 300), det('ALB', 320, 300), det('3.5', 480, 300), det('3.3--5.5', 740, 300), det('Print', 1100, 300),
+            det('QC', 95, 350), det('ALT', 320, 350), det('63', 480, 350), det('Save', 1100, 350),
+        ]
+        rows = parse_page(detections, 1299, 'BIO')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([r['name'] for r in rows], ['Albumin', 'Alanine Transaminase (ALT)'])
+        self.assertEqual(rows[0]['result'], '3.5')
+        self.assertEqual(rows[0]['referenceRange'], '3.3-5.5')
+        self.assertEqual(rows[1]['result'], '63')
+
+    def test_handles_out_of_linear_range_dash_results(self):
+        detections = [
+            det('eGFRcr', 330, 400), det('--', 480, 400), det('Out linear', 850, 395), det('range!', 850, 410),
+            det('IBIL', 330, 450), det('--', 480, 450), det('0.0--17.0', 740, 450), det('Out linear range!', 850, 450),
+        ]
+        rows = parse_page(detections, 1299, 'BIO')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['name'], 'eGFRcr')
+        self.assertEqual(rows[0]['result'], '--')
+        self.assertEqual(rows[1]['name'], 'Indirect bilirubin')
+        self.assertEqual(rows[1]['result'], '--')
+        self.assertEqual(rows[1]['referenceRange'], '0.0-17.0')
+
 
 class MergeTest(unittest.TestCase):
     def test_duplicate_rows_across_photos_keep_first(self):

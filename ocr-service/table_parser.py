@@ -6,6 +6,7 @@ side, so each row is split at the boundary between the two "Para" columns.
 """
 import re
 from statistics import median
+import cv2
 
 FLAGS = {'H', 'L'}
 UI_WORDS = {
@@ -13,7 +14,9 @@ UI_WORDS = {
     'sample', 'sample id', 'type', 'cat', 'dog', 'wbc info', 'rbc info', 'plt info',
     'name', 'gender', 'male', 'female', 'age', 'test time', 'time',
     'para', 'result', 'unit', 'edit result', 'edit', 'position/sum',
-    'lymphocytosis', 'anemia', 'macrocytosis', 'mid increase', 'review', 'qc', 'reagent', 'diluent'
+    'lymphocytosis', 'anemia', 'macrocytosis', 'mid increase', 'review', 'qc', 'reagent', 'diluent',
+    'test', 'reports', 'settings', 'patient name', 'testing time', 'rotor type', 'general chemistry',
+    'test results', 'assay', 'h/l', 'ref.', 'ref', 'descr.', 'descr', 'tusky', '目'
 }
 NAME_PATTERN = re.compile(r'^[A-Za-z][A-Za-z0-9#%/()\-]*$')
 UNIT_PATTERN = re.compile(r'^[A-Za-zµμ%/^0-9.]{1,8}$')
@@ -114,8 +117,12 @@ BIO_ALIASES = {
     'TP': 'Total protein', 'ALB': 'Albumin', 'GLOB': 'Globulin', 'A/G': 'A/G Ratio',
     'TB': 'Total bilirubin', 'DB': 'Direct bilirubin', 'IBIL': 'Indirect bilirubin',
     'GGT': 'Gamma-glutamyl transpeptidase (GGT)', 'AST': 'Aspartate aminotransferase (AST)',
-    'ALT': 'Alanine Transaminase (ALT)', 'UREA': 'Urea', 'Crea': 'Creatinine',
-    'UA': 'Uric Acid', 'U/C': 'U/C Ratio',
+    'ALT': 'Alanine Transaminase (ALT)', 'ALP': 'ALP', 'CHE': 'CHE',
+    'TBA': 'TBA', 'AMY': 'AMY', 'CK': 'CK',
+    'Crea': 'Creatinine', 'CREA': 'Creatinine',
+    'eGFRcr': 'eGFRcr', 'EGFRCR': 'eGFRcr',
+    'UA': 'Uric Acid', 'UREA': 'Urea', 'U/C': 'U/C Ratio',
+    'GLU': 'GLU', 'TC': 'TC', 'TG': 'TG', 'HDL': 'HDL', 'LDL': 'LDL',
 }
 BIO_SECTION_GROUPS = {
     'Liver Profile': ['Total protein', 'Albumin', 'Globulin', 'A/G Ratio', 'Total bilirubin', 'Direct bilirubin',
@@ -131,7 +138,7 @@ BIO_SECTIONS = {name: section for section, names in BIO_SECTION_GROUPS.items() f
 def group_rows(detections):
     if not detections:
         return []
-    tolerance = max(median(d['h'] for d in detections) * 0.6, 4)
+    tolerance = max(median(d['h'] for d in detections) * 0.85, 8)
     rows = []
     for det in sorted(detections, key=lambda d: d['y']):
         if rows and abs(det['y'] - rows[-1]['y']) <= tolerance:
@@ -198,7 +205,6 @@ def parse_cbc_panel(tokens, expected_name=None):
     if not tokens:
         return None
 
-    # Filter out UI words and headers
     filtered = []
     for t in tokens:
         raw = t['text'].strip()
@@ -211,7 +217,6 @@ def parse_cbc_panel(tokens, expected_name=None):
 
     filtered = sorted(filtered, key=lambda d: d['x'])
 
-    # 1. Identify name
     name = None
     name_idx = -1
     for i, t in enumerate(filtered):
@@ -219,7 +224,6 @@ def parse_cbc_panel(tokens, expected_name=None):
         cl = re.sub(r'[^a-zA-Z0-9#%\-_]', '', raw).lower()
         if cl in CBC_ALIASES:
             candidate = CBC_ALIASES[cl]
-            # Disambiguation if needed (e.g. 'lym' without # or %)
             if candidate in ('Lym#', 'Mid#', 'Gran#'):
                 other_text = ' '.join(tok['text'] for j, tok in enumerate(filtered) if j != i)
                 if any(p in other_text for p in ('%', '%/%', '9/6', 'o/o')):
@@ -255,12 +259,10 @@ def parse_cbc_panel(tokens, expected_name=None):
         txt = t['text'].strip()
         scores.append(t['score'])
 
-        # Standalone flag: 'H' or 'L'
         if txt in FLAGS and not flag:
             flag = txt
             continue
 
-        # Flag + number, e.g. "H 22.06", "H22.06", "L 17.7", "L17.7"
         m1 = re.match(r'^([HL])\s*([<>]?\s?[-+]?\d+(?:[.,]\d+)?|\+{2,}|-{1,2}|[—–]{1,2})$', txt)
         if m1:
             if not flag:
@@ -269,7 +271,6 @@ def parse_cbc_panel(tokens, expected_name=None):
                 result = m1.group(2)
             continue
 
-        # Number + flag, e.g. "22.06 H", "17.7 L"
         m2 = re.match(r'^([<>]?\s?[-+]?\d+(?:[.,]\d+)?)\s*([HL])$', txt)
         if m2:
             if not result:
@@ -278,7 +279,6 @@ def parse_cbc_panel(tokens, expected_name=None):
                 flag = m2.group(2)
             continue
 
-        # Pure number / symbol
         if (NUMBER_PATTERN.fullmatch(txt) or SYMBOL_PATTERN.fullmatch(txt)) and not result:
             result = txt
             continue
@@ -286,7 +286,6 @@ def parse_cbc_panel(tokens, expected_name=None):
         unit_tokens.append(txt)
 
     if not result:
-        # Fallback: scan unit_tokens for embedded number
         for txt in list(unit_tokens):
             m = re.search(r'[<>]?\s?[-+]?\d+(?:[.,]\d+)?', txt)
             if m and not result:
@@ -318,27 +317,179 @@ def parse_cbc_cells(tokens):
     return parse_cbc_panel(tokens)
 
 
-def parse_bio_cells(tokens):
+def parse_bio_cells(tokens, source_img=None):
     tokens = merge_symbols(tokens)
-    if len(tokens) < 2 or not NAME_PATTERN.match(tokens[0]['text']):
+    if not tokens:
         return None
-    if tokens[0]['text'].lower() in UI_WORDS:
+
+    # Filter out sidebar words, action buttons, and header words if present
+    filtered = []
+    for t in tokens:
+        txt = t['text'].strip().lower()
+        if txt in UI_WORDS:
+            continue
+        filtered.append(t)
+
+    if not filtered:
         return None
-    if not is_result(tokens[1]['text']):
+
+    # 1. Identify analyte name
+    name = None
+    name_idx = -1
+    for i, t in enumerate(filtered):
+        raw = t['text'].strip()
+        cl = re.sub(r'[^a-zA-Z0-9/\-_]', '', raw)
+        for alias_key in BIO_ALIASES:
+            if cl.lower() == alias_key.lower():
+                name = alias_key
+                name_idx = i
+                break
+        if name:
+            break
+
+    if not name:
+        for i, t in enumerate(filtered):
+            raw = t['text'].strip()
+            if re.match(r'^[A-Za-z][A-Za-z0-9/\-_]*$', raw) and raw.lower() not in UI_WORDS and raw not in FLAGS and not NUMBER_PATTERN.fullmatch(raw):
+                name = raw
+                name_idx = i
+                break
+
+    if not name:
         return None
-    rest = tokens[2:]
+
+    rest = [t for i, t in enumerate(filtered) if i != name_idx]
+
+    # Check for "Out linear range!"
+    is_out_linear = any('out linear' in t['text'].lower() or 'range!' in t['text'].lower() for t in rest)
+
+    # 2. Extract reference range (can be single token e.g. '0.2--1.2' or split e.g. '1.20', '--', '2.40')
+    ref_token_indices = set()
+    reference = ''
+    for i, t in enumerate(rest):
+        m = RANGE_PATTERN.search(t['text'])
+        if m:
+            reference = normalize_range(m.group(0))
+            ref_token_indices.add(i)
+            break
+
+    if not reference:
+        for i in range(len(rest)):
+            if i + 2 < len(rest):
+                combined = f"{rest[i]['text']} {rest[i+1]['text']} {rest[i+2]['text']}"
+                m = RANGE_PATTERN.search(combined)
+                if m:
+                    reference = normalize_range(m.group(0))
+                    ref_token_indices.update([i, i + 1, i + 2])
+                    break
+            if i + 1 < len(rest):
+                combined = f"{rest[i]['text']}{rest[i+1]['text']}"
+                m = RANGE_PATTERN.search(combined)
+                if m:
+                    reference = normalize_range(m.group(0))
+                    ref_token_indices.update([i, i + 1])
+                    break
+
+    # 3. Extract result and flag
+    result = ''
     flag = ''
-    if rest and rest[0]['text'] in FLAGS:
-        flag = rest[0]['text']
-        rest = rest[1:]
-    text = ' '.join(t['text'] for t in rest)
-    match = RANGE_PATTERN.search(text)
-    reference = normalize_range(match.group(0)) if match else ''
-    before = text[:match.start()].strip() if match else ''
-    unit = before if UNIT_PATTERN.match(before) and before.lower() not in UI_WORDS else ''
+    unit = ''
+    scores = [filtered[name_idx]['score']] if name_idx >= 0 else [0.95]
+
+    for i, t in enumerate(rest):
+        if i in ref_token_indices:
+            continue
+        txt = t['text'].strip()
+        if 'out linear' in txt.lower() or 'range!' in txt.lower():
+            continue
+
+        # Standalone flag
+        if txt in FLAGS and not flag:
+            flag = txt
+            scores.append(t['score'])
+            continue
+
+        # Combined flag + number, e.g. "H 177", "L 1.20"
+        m1 = re.match(r'^([HL])\s*([<>]?\s?[-+]?\d+(?:[.,]\d+)?|\+{2,}|-{1,2}|[—–]{1,2})$', txt)
+        if m1:
+            if not flag: flag = m1.group(1)
+            if not result: result = m1.group(2)
+            scores.append(t['score'])
+            continue
+
+        # Number + flag, e.g. "177 H"
+        m2 = re.match(r'^([<>]?\s?[-+]?\d+(?:[.,]\d+)?)\s*([HL])$', txt)
+        if m2:
+            if not result: result = m2.group(1)
+            if not flag: flag = m2.group(2)
+            scores.append(t['score'])
+            continue
+
+        # Pure number or symbol
+        if (NUMBER_PATTERN.fullmatch(txt) or SYMBOL_PATTERN.fullmatch(txt)) and not result:
+            result = txt
+            scores.append(t['score'])
+            continue
+
+        # Check unit
+        if UNIT_PATTERN.match(txt) and txt.lower() not in UI_WORDS and not unit:
+            unit = txt
+
+    # 4. If no result found in detected tokens, and source image is available, run targeted cell crop (e.g. for small LDL digits)
+    if not result and source_img is not None and name_idx >= 0:
+        name_tok = filtered[name_idx]
+        y_center = int(name_tok['y'])
+        h_box = 25
+        img_w = source_img.shape[1]
+
+        rx_start = int(0.34 * img_w)
+        rx_end = int(0.47 * img_w)
+        if y_center - h_box >= 0 and y_center + h_box <= source_img.shape[0]:
+            crop = source_img[y_center - h_box : y_center + h_box, rx_start : rx_end]
+            if crop.size > 0:
+                crop_2x = cv2.resize(crop, (0, 0), fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                from ocr_engine import _engine
+                cell_res = _engine().predict(crop_2x)
+                if cell_res and cell_res[0].get('rec_texts'):
+                    for c_txt, c_sc in zip(cell_res[0]['rec_texts'], cell_res[0]['rec_scores']):
+                        c_txt = c_txt.strip()
+                        if NUMBER_PATTERN.fullmatch(c_txt) or SYMBOL_PATTERN.fullmatch(c_txt):
+                            result = c_txt
+                            scores.append(c_sc)
+                            break
+
+            fx_start = int(0.47 * img_w)
+            fx_end = int(0.55 * img_w)
+            fcrop = source_img[y_center - h_box : y_center + h_box, fx_start : fx_end]
+            if fcrop.size > 0:
+                fcrop_2x = cv2.resize(fcrop, (0, 0), fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+                from ocr_engine import _engine
+                fres = _engine().predict(fcrop_2x)
+                if fres and fres[0].get('rec_texts'):
+                    for c_txt in fres[0]['rec_texts']:
+                        c_txt = c_txt.strip()
+                        if c_txt in FLAGS:
+                            flag = c_txt
+                            break
+
+    # 5. If still no result, but is_out_linear is true, analyzer display shows '--'
+    if not result and is_out_linear:
+        result = '--'
+        scores.append(0.95)
+
+    if not result:
+        return None
+
+    canonical_name = BIO_ALIASES.get(name, name)
+    section = BIO_SECTIONS.get(canonical_name, 'Other')
+
     return {
-        'name': tokens[0]['text'], 'result': clean_result(tokens[1]['text']), 'unit': unit,
-        'referenceRange': reference, 'remarks': flag, 'scores': [t['score'] for t in tokens],
+        'name': canonical_name,
+        'result': clean_result(result),
+        'unit': unit,
+        'referenceRange': reference,
+        'remarks': flag,
+        'scores': scores,
     }
 
 
@@ -362,7 +513,7 @@ def to_analyte(row, report_type):
     }
 
 
-def parse_page(detections, width, report_type):
+def parse_page(detections, width, report_type, source_img=None):
     if report_type == 'CBC':
         split, right_edge = cbc_boundaries(detections, width)
         scoped = [d for d in detections if d['x'] <= right_edge]
@@ -376,7 +527,6 @@ def parse_page(detections, width, report_type):
             lp = parse_cbc_panel(left_tokens)
             rp = parse_cbc_panel(right_tokens)
 
-            # Cross-inference if one panel was recognized and the other wasn't
             if lp and not rp and right_tokens:
                 expected_right = CBC_LEFT_TO_RIGHT.get(lp['name'])
                 if expected_right:
@@ -391,19 +541,6 @@ def parse_page(detections, width, report_type):
             if rp:
                 parsed_by_name[rp['name']] = rp
 
-        # Order line by line as on the analyser photo:
-        # Line 1: WBC, MCV
-        # Line 2: Lym#, MCH
-        # Line 3: Mid#, MCHC
-        # Line 4: Gran#, RDW-CV
-        # Line 5: Lym%, RDW-SD
-        # Line 6: Mid%, PLT
-        # Line 7: Gran%, MPV
-        # Line 8: NLR, PDW-CV
-        # Line 9: PLR, PDW-SD
-        # Line 10: RBC, PCT
-        # Line 11: HGB, P-LCC
-        # Line 12: HCT, P-LCR
         ordered = []
         for left_expected, right_expected in CBC_ROW_PAIRS:
             if left_expected in parsed_by_name:
@@ -411,14 +548,29 @@ def parse_page(detections, width, report_type):
             if right_expected in parsed_by_name:
                 ordered.append(parsed_by_name[right_expected])
 
-        # Include any extra parameters not in standard 24 pairs
         for name, item in parsed_by_name.items():
             if item not in ordered:
                 ordered.append(item)
 
         return [to_analyte(row, report_type) for row in ordered]
     else:
-        parsed = [parse_bio_cells(row) for row in group_rows(detections)]
+        # BIO analyzer screen:
+        # Exclude left navigation sidebar (x < 0.18 * width), right action buttons (x > 0.83 * width),
+        # and top date/time header bar (y < 0.12 * height)
+        h = source_img.shape[0] if source_img is not None else 1000
+        clean_dets = []
+        for d in detections:
+            txt = d['text'].strip().lower()
+            if txt in UI_WORDS:
+                continue
+            if d['x'] < 0.18 * width or d['x'] > 0.83 * width:
+                continue
+            if d['y'] < 0.12 * h and any(k in txt for k in ['2026', 'v1.']):
+                continue
+            clean_dets.append(d)
+
+        rows = group_rows(clean_dets)
+        parsed = [parse_bio_cells(row, source_img) for row in rows]
         return [to_analyte(row, report_type) for row in parsed if row]
 
 

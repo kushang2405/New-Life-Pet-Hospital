@@ -35,9 +35,9 @@ def extract(request: ExtractRequest):
         try:
             raw_b64 = image.dataUrl.split(',')[-1]
             source = decode_image(base64.b64decode(raw_b64))
-            prepared = prepare_image(source)
+            prepared = prepare_image(source) if request.reportType == 'CBC' else source
             detections = read_detections(prepared)
-            pages.append(parse_page(detections, prepared.shape[1], request.reportType))
+            pages.append(parse_page(detections, prepared.shape[1], request.reportType, source_img=prepared))
             raw_sections.append('\n'.join(' '.join(d['text'] for d in row) for row in group_rows(detections)))
         except Exception as err:
             warnings.append(f'{image.name or "Photo"}: {err}')
