@@ -137,7 +137,7 @@ export default function WhatsAppReminders() {
         <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>Preview reminder</Button>
         <Button variant="outline" size="sm" onClick={() => { setTestOpen(true); setTestResult(null); }}>Send test reminder</Button>
         */}
-        <Button size="sm" onClick={runDueReminders} disabled={running}>{running ? 'Sending...' : 'Send due reminders now'}</Button>
+        {/* <Button size="sm" onClick={runDueReminders} disabled={running}>{running ? 'Sending...' : 'Send due reminders now'}</Button> */}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
