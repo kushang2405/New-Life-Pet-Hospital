@@ -330,8 +330,8 @@ export default function BillingPage() {
   };
 
   /** Returns true when the delete was confirmed and sent. */
-  const deleteInvoice = (inv: Invoice) => {
-    if (!confirmDelete(`${inv.docType.toLowerCase()} ${inv.number}`, `${ownerName(inv.ownerId)} · ${fmt(invoiceTotals(inv).total)}`)) {
+  const deleteInvoice = async (inv: Invoice): Promise<boolean> => {
+    if (!await confirmDelete(`${inv.docType.toLowerCase()} ${inv.number}`, `${ownerName(inv.ownerId)} · ${fmt(invoiceTotals(inv).total)}`)) {
       return false;
     }
     remove('invoices', inv.id);
@@ -428,8 +428,8 @@ export default function BillingPage() {
   };
 
   /** Returns true when the delete was confirmed and sent. */
-  const deleteExpense = (e: Expense) => {
-    if (!confirmDelete(`expense ${e.number}`, `${e.description || e.category} · ${fmt(num(e.total))}`)) {
+  const deleteExpense = async (e: Expense): Promise<boolean> => {
+    if (!await confirmDelete(`expense ${e.number}`, `${e.description || e.category} · ${fmt(num(e.total))}`)) {
       return false;
     }
     remove('expenses', e.id);
@@ -1034,7 +1034,7 @@ export default function BillingPage() {
                     </Button>
                   </>
                 )}
-                <Button variant="ghost" onClick={() => { if (deleteInvoice(inv)) setDetailInvId(null); }} className="text-coral">
+                <Button variant="ghost" onClick={async () => { if (await deleteInvoice(inv)) setDetailInvId(null); }} className="text-coral">
                   <Trash2 className="w-4 h-4" /> Delete
                 </Button>
               </div>
@@ -1218,7 +1218,7 @@ export default function BillingPage() {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => openEditExpense(detailExp)}><FileText className="w-4 h-4" /> Edit</Button>
-              <Button variant="ghost" onClick={() => { if (deleteExpense(detailExp)) setDetailExpId(null); }} className="text-coral"><Trash2 className="w-4 h-4" /> Delete</Button>
+              <Button variant="ghost" onClick={async () => { if (await deleteExpense(detailExp)) setDetailExpId(null); }} className="text-coral"><Trash2 className="w-4 h-4" /> Delete</Button>
             </div>
           </div>
         )}

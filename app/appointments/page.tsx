@@ -13,6 +13,7 @@ import Shell from '../components/Shell';
 import { Card, Badge, Button, EmptyState, Modal, Field, Checkbox, Select, DateInput, TimeInput, NumberInput } from '../components/ui';
 import { useDB, Appointment, newId, today } from '../lib/store';
 import { useAuth } from '../lib/auth';
+import { confirmDelete } from '../lib/helpers';
 
 const services = ['Consultation', 'Vaccination', 'Surgery', 'Dental', 'Grooming', 'Boarding', 'Emergency', 'Walk-in', 'Follow-up', 'Other'];
 const statusFlow: Record<Appointment['status'], Appointment['status'] | null> = {
@@ -157,7 +158,13 @@ export default function AppointmentsPage() {
     update('appointments', id, { status: 'Rescheduled' as const, date, time });
   };
 
-  const deleteAppt = (id: string) => remove('appointments', id);
+  const deleteAppt = async (id: string) => {
+    const a = db?.appointments.find((x) => x.id === id);
+    const pet = a ? db?.pets.find((p) => p.id === a.petId) : null;
+    const desc = pet ? `appointment for ${pet.name} on ${a?.date} at ${a?.time}` : 'this appointment';
+    if (!await confirmDelete(desc)) return;
+    remove('appointments', id);
+  };
 
   const openEdit = (a: Appointment) => {
     setEditAppt(a);

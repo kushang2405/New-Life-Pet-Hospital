@@ -11,6 +11,7 @@ import { useAuth } from '../lib/auth';
 import {
   applyForLeave, decideLeaveRequest, LEAVE_TYPES, localDate,
 } from '../lib/attendance';
+import { showAlert } from '../lib/helpers';
 import type { Staff, LeaveRequest } from '../lib/api';
 
 export default function LeavesPage() {
@@ -60,7 +61,7 @@ export default function LeavesPage() {
       const updated = await decideLeaveRequest(staffId, leaveId, decision);
       update('staff', updated.id, { leaveRequests: updated.leaveRequests });
     } catch (err) {
-      alert((err as Error).message);
+      await showAlert((err as Error).message, 'Leave Decision');
     }
   };
 

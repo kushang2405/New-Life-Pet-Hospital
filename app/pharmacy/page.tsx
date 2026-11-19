@@ -423,7 +423,7 @@ export default function PharmacyPage() {
     const onOrders = db.purchases.filter((p) => p.items.some((i) => i.stockItemId === m.id)).length;
     const refs = [onSales && `${onSales} sale${onSales > 1 ? 's' : ''}`, onOrders && `${onOrders} purchase order${onOrders > 1 ? 's' : ''}`]
       .filter(Boolean).join(' and ');
-    if (!confirmDelete(`${m.name} (${availableOf(m)} ${m.unit} on hand)`, refs ? `It is referenced by ${refs}, which will keep showing its name.` : undefined)) return;
+    if (!await confirmDelete(`${m.name} (${availableOf(m)} ${m.unit} on hand)`, refs ? `It is referenced by ${refs}, which will keep showing its name.` : undefined)) return;
     try {
       await remove('medStock', m.id);
     } catch (err) {
@@ -546,7 +546,7 @@ export default function PharmacyPage() {
       linked.length > 0 && `${linked.length} item${linked.length > 1 ? 's' : ''} will lose their supplier link`,
       orders > 0 && `${orders} purchase order${orders > 1 ? 's' : ''} will keep the name for the record`,
     ].filter(Boolean).join('; ');
-    if (!confirmDelete(`supplier ${s.name}`, extra || undefined)) return;
+    if (!await confirmDelete(`supplier ${s.name}`, extra || undefined)) return;
     try {
       await remove('suppliers', s.id);
       for (const m of linked) await update('medStock', m.id, { supplierId: '', supplier: '' });
@@ -707,7 +707,7 @@ export default function PharmacyPage() {
   const deletePur = async (p: Purchase) => {
     if (!db) return;
     const received = p.status === 'Received';
-    if (!confirmDelete(`purchase order ${p.poNumber}`, received ? 'The stock it brought in will be taken back out of inventory.' : undefined)) return;
+    if (!await confirmDelete(`purchase order ${p.poNumber}`, received ? 'The stock it brought in will be taken back out of inventory.' : undefined)) return;
     try {
       if (received) {
         const prev = linesByItem(p.items);
@@ -870,7 +870,7 @@ export default function PharmacyPage() {
   };
 
   const deleteSale = async (s: PharmacySale) => {
-    if (!confirmDelete(`sale ${s.saleNumber}`, holdsStock(s.status) ? 'The dispensed stock will be returned to inventory.' : undefined)) return;
+    if (!await confirmDelete(`sale ${s.saleNumber}`, holdsStock(s.status) ? 'The dispensed stock will be returned to inventory.' : undefined)) return;
     try {
       if (holdsStock(s.status)) await restock(s.items);
       await remove('pharmacySales', s.id);
@@ -882,7 +882,7 @@ export default function PharmacyPage() {
   const refundSale = async (s: PharmacySale) => {
     if (!holdsStock(s.status)) return;
     const units = s.items.reduce((n, i) => n + numMin(i.quantity, 0), 0);
-    if (!confirmAction(`Refund ${s.saleNumber} for ${money(num(s.total))} and return ${units} unit${units === 1 ? '' : 's'} to stock?`)) return;
+    if (!await confirmAction(`Refund ${s.saleNumber} for ${money(num(s.total))} and return ${units} unit${units === 1 ? '' : 's'} to stock?`)) return;
     try {
       await update('pharmacySales', s.id, { status: 'Refunded' });
       await restock(s.items);

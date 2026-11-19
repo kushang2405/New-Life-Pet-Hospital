@@ -448,7 +448,7 @@ export default function GroomingPage() {
     patchLive(g.id, () => ({ reminderSent: true, reminderDate: localDateISO() }));
 
   const deleteGroom = async (g: GroomingAppt) => {
-    if (!confirmDelete(`grooming appointment ${g.appointmentNumber || g.petName}`, `${g.petName} · ${fmtDate(g.date)}`)) return;
+    if (!await confirmDelete(`grooming appointment ${g.appointmentNumber || g.petName}`, `${g.petName} · ${fmtDate(g.date)}`)) return;
     try {
       setActionError('');
       await remove('grooming', g.id);

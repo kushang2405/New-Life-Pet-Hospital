@@ -6,6 +6,7 @@ import Shell from '../components/Shell';
 import { Card, Badge, Button, EmptyState, Modal, Field, Input, SearchInput, NumberInput, Textarea, Select, DateInput } from '../components/ui';
 import { PetProfileDrawer } from '../components/pet-profile';
 import { useDB, Owner, Pet, newId, today } from '../lib/store';
+import { confirmDelete } from '../lib/helpers';
 
 const speciesOptions = ['Dog', 'Cat', 'Rabbit', 'Bird', 'Reptile', 'Other'];
 const defaultForm = {
@@ -212,7 +213,13 @@ export default function PatientsPage() {
     setFormErrors({});
   };
 
-  const deletePet = (id: string) => remove('pets', id);
+  const deletePet = async (id: string): Promise<boolean> => {
+    const p = db?.pets.find((x) => x.id === id);
+    const name = p ? `patient "${p.name}"` : 'this patient';
+    if (!await confirmDelete(name, 'All medical records and history for this pet will be affected.')) return false;
+    remove('pets', id);
+    return true;
+  };
 
   const updatePet = (patch: Partial<Pet>) => {
     if (!detailPet) return;
@@ -538,7 +545,7 @@ export default function PatientsPage() {
           invoices={invoicesOf(detailPet.id)}
           onClose={() => setDetailPet(null)}
           onEdit={() => { openEdit(detailPet); setDetailPet(null); }}
-          onDelete={() => { deletePet(detailPet.id); setDetailPet(null); }}
+          onDelete={async () => { const ok = await deletePet(detailPet.id); if (ok) setDetailPet(null); }}
           onUpdate={updatePet}
         />
       )}

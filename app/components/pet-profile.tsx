@@ -8,6 +8,7 @@ import {
 import { Card, Badge, Button, Modal, Field, Input, NumberInput, Select, DateInput, Checkbox, Textarea, ImagePicker } from './ui';
 import type { Pet, Owner, Appointment, Invoice, PetPhoto, PetDocument } from '../lib/api';
 import { newId, today } from '../lib/store';
+import { confirmDelete } from '../lib/helpers';
 
 const age = (birth: string) => {
   if (!birth) return '—';
@@ -249,7 +250,8 @@ function GalleryTab({ pet, onUpdate }: { pet: Pet; onUpdate: (patch: Partial<Pet
     setCaption('');
   };
 
-  const removePhoto = (id: string) => {
+  const removePhoto = async (id: string) => {
+    if (!await confirmDelete('this photo')) return;
     onUpdate({ photos: (pet.photos || []).filter((p) => p.id !== id) });
   };
 
@@ -327,8 +329,11 @@ function DocumentsTab({ pet, onUpdate }: { pet: Pet; onUpdate: (patch: Partial<P
     setUrl('');
   };
 
-  const removeDoc = (id: string) => {
-    onUpdate({ documents: (pet.documents || []).filter((d) => d.id !== id) });
+  const removeDoc = async (id: string) => {
+    const d = (pet.documents || []).find((x) => x.id === id);
+    const label = d?.name ? `document "${d.name}"` : 'this document';
+    if (!await confirmDelete(label)) return;
+    onUpdate({ documents: (pet.documents || []).filter((doc) => doc.id !== id) });
   };
 
   const docs = pet.documents || [];

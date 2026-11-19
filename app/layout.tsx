@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { SettingsProvider } from './components/settings-provider';
+import { ConfirmDialogProvider } from './components/confirm-dialog';
 import PwaRegister from './components/pwa-register';
 
 const plusJakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-plus-jakarta' });
@@ -114,7 +115,12 @@ d.dataset.theme=th;d.style.colorScheme=dark?'dark':'light';
         />
       </head>
       <body className={plusJakarta.variable}>
-        <SettingsProvider><PwaRegister />{children}</SettingsProvider>
+        <SettingsProvider>
+          <ConfirmDialogProvider>
+            <PwaRegister />
+            {children}
+          </ConfirmDialogProvider>
+        </SettingsProvider>
       </body>
     </html>
   );

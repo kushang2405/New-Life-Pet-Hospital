@@ -11,6 +11,7 @@ import { useDB, Staff, newId } from '../lib/store';
 import { useAuth, updateStaffStatus, setStaffPassword } from '../lib/auth';
 import { useSettings } from '../lib/settings';
 import { staffRoleOptions, allRoles } from '../lib/platform';
+import { confirmDelete, showAlert } from '../lib/helpers';
 
 const statuses: Staff['status'][] = ['Active', 'On leave', 'Inactive', 'Suspended'];
 
@@ -116,11 +117,16 @@ export default function StaffPage() {
       await updateStaffStatus(s.id, newStatus);
       update('staff', s.id, { status: newStatus });
     } catch (err) {
-      alert((err as Error).message);
+      await showAlert((err as Error).message, 'Staff Status Error');
     }
   };
 
-  const deleteStaff = (id: string) => remove('staff', id);
+  const deleteStaff = async (id: string) => {
+    const s = db.staff.find((x) => x.id === id);
+    const name = s ? `staff member "${s.name}"` : 'this staff member';
+    if (!await confirmDelete(name, 'Their access and records will be removed.')) return;
+    remove('staff', id);
+  };
 
   const statusIcon = (status: string) => {
     switch (status) {

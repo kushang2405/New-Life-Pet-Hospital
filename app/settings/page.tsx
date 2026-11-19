@@ -58,8 +58,8 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2500);
   };
 
-  const restoreDefaults = () => {
-    if (!confirmAction('Restore all settings to their defaults? Your customisations will be lost.')) return;
+  const restoreDefaults = async () => {
+    if (!await confirmAction('Restore all settings to their defaults? Your customisations will be lost.', 'Restore Defaults')) return;
     resetSettings();
     setDraft(null);
     setSaved(true);

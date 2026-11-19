@@ -8,6 +8,7 @@ import {
 import Shell from '../components/Shell';
 import { Card, Button, EmptyState, Modal, Field, Input, Select, DateInput, Textarea, NumberInput, Checkbox } from '../components/ui';
 import { useDB, Vaccination, newId, today } from '../lib/store';
+import { confirmDelete } from '../lib/helpers';
 
 const scheduleTypes = ['Puppy', 'Kitten', 'Adult', 'Livestock', 'Custom'] as const;
 const statuses = ['Completed', 'Pending', 'Overdue', 'Scheduled'] as const;
@@ -157,7 +158,13 @@ export default function VaccinationsPage() {
     setEditRecord(null);
   };
 
-  const deleteRecord = (id: string) => remove('vaccinations', id);
+  const deleteRecord = async (id: string) => {
+    const r = db?.vaccinations.find((x) => x.id === id);
+    const pet = r ? db?.pets.find((p) => p.id === r.petId) : null;
+    const desc = pet ? `vaccination record (${r?.vaccineName || 'Vaccine'}) for ${pet.name}` : 'this vaccination record';
+    if (!await confirmDelete(desc)) return;
+    remove('vaccinations', id);
+  };
 
   const applyScheduleTemplate = (schedule: Vaccination['scheduleType']) => {
     set('scheduleType', schedule);

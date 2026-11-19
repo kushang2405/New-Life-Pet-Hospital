@@ -10,7 +10,7 @@ import {
 import Shell from '../components/Shell';
 import { Card, Button, EmptyState, Modal, Field, Input, Select, Textarea, NumberInput, DatePicker, TimeInput, Checkbox, Badge, Tabs } from '../components/ui';
 import { useDB, Surgery, StaffAssignment, EquipmentItem, AnesthesiaVital, RecoveryVital, newId, today } from '../lib/store';
-import { localDateISO, localTimeHHMM, nextQuarterHourHHMM } from '../lib/helpers';
+import { localDateISO, localTimeHHMM, nextQuarterHourHHMM, confirmDelete } from '../lib/helpers';
 
 const statuses = ['Scheduled', 'Pre-op', 'In surgery', 'Recovery', 'Completed', 'Cancelled'] as const;
 const procedureTypes = ['Planned', 'Emergency'] as const;
@@ -255,7 +255,13 @@ export default function SurgeriesPage() {
     setEditS(null);
   };
 
-  const deleteSurgery = (id: string) => remove('surgeries', id);
+  const deleteSurgery = async (id: string) => {
+    const s = db?.surgeries.find((x) => x.id === id);
+    const pet = s ? db?.pets.find((p) => p.id === s.petId) : null;
+    const desc = pet ? `surgery record for ${pet.name} (${s?.procedureName || 'Procedure'})` : 'this surgery record';
+    if (!await confirmDelete(desc)) return;
+    remove('surgeries', id);
+  };
 
   const tabs: { key: Tab; label: string; icon: typeof Stethoscope }[] = [
     { key: 'overview', label: 'Overview', icon: ClipboardList },

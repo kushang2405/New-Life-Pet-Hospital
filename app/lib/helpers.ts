@@ -133,24 +133,47 @@ export function nextDocNumber(
   return `${prefix}${pad > 0 ? String(next).padStart(pad, '0') : next}`;
 }
 
+import { confirmModal, alertModal } from '../components/confirm-dialog';
+
 /* ──────────────────────────────────────────────────────────────
-   Confirmation for destructive actions
+   Confirmation & alert modals (replaces native window.confirm/alert)
    ────────────────────────────────────────────────────────────── */
 
 /**
- * Confirm a destructive action. Returns true when the user agreed.
- * Use as an early guard: `if (!confirmDelete('invoice INV-1045')) return;`
+ * Confirm a destructive action with a top-center modal. Returns true when the user agreed.
+ * Use as an early guard: `if (!await confirmDelete('invoice INV-1045')) return;`
  */
-export function confirmDelete(what: string, extra?: string): boolean {
-  if (typeof window === 'undefined') return false;
+export async function confirmDelete(what: string, extra?: string): Promise<boolean> {
   const detail = extra ? `\n\n${extra}` : '';
-  return window.confirm(`Delete ${what}?${detail}\n\nThis cannot be undone.`);
+  const firstWord = what.trim().split(' ')[0] || '';
+  const title = `Delete ${firstWord.charAt(0).toUpperCase() + firstWord.slice(1)}?`;
+  return confirmModal({
+    title,
+    message: `Are you sure you want to delete ${what}?${detail}\n\nThis cannot be undone.`,
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    variant: 'danger',
+  });
 }
 
-/** Confirm any non-delete action that is hard to reverse. */
-export function confirmAction(message: string): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.confirm(message);
+/** Confirm any action that is hard to reverse. */
+export async function confirmAction(message: string, title: string = 'Confirm Action'): Promise<boolean> {
+  return confirmModal({
+    title,
+    message,
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    variant: 'primary',
+  });
+}
+
+/** Show a notice/alert modal instead of native window.alert. */
+export async function showAlert(message: string, title: string = 'Notice'): Promise<void> {
+  return alertModal({
+    title,
+    message,
+    buttonText: 'OK',
+  });
 }
 
 /* ──────────────────────────────────────────────────────────────

@@ -340,7 +340,7 @@ export default function BoardingPage() {
   };
 
   const deleteBoard = async (b: BoardingPet) => {
-    if (!confirmDelete(`boarding record ${b.boardingNumber || b.petName}`, `${b.petName} · ${b.room}`)) return;
+    if (!await confirmDelete(`boarding record ${b.boardingNumber || b.petName}`, `${b.petName} · ${b.room}`)) return;
     try {
       setActionError('');
       await remove('boarding', b.id);
@@ -361,13 +361,13 @@ export default function BoardingPage() {
       [scheduleKey]: (live[scheduleKey] || []).filter((s) => s.id !== itemId),
     } as Partial<BoardingPet>));
 
-  const removeHealthCheck = (b: BoardingPet, hcId: string) => {
-    if (!confirmDelete('this health check')) return;
+  const removeHealthCheck = async (b: BoardingPet, hcId: string) => {
+    if (!await confirmDelete('this health check')) return;
     patchLive(b.id, (live) => ({ healthChecks: (live.healthChecks || []).filter((h) => h.id !== hcId) }));
   };
 
-  const removePhoto = (b: BoardingPet, photoId: string) => {
-    if (!confirmDelete('this photo')) return;
+  const removePhoto = async (b: BoardingPet, photoId: string) => {
+    if (!await confirmDelete('this photo')) return;
     patchLive(b.id, (live) => ({ dailyPhotos: (live.dailyPhotos || []).filter((p) => p.id !== photoId) }));
   };
 
