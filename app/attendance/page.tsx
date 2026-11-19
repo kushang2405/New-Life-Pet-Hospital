@@ -104,10 +104,15 @@ export default function AttendancePage() {
     }
   };
 
+  // Staff list excluding Super Admin
+  const staffList = useMemo(() => {
+    if (!db) return [];
+    return db.staff.filter((s) => s.role !== 'Super Admin');
+  }, [db]);
+
   // Super Admin: build attendance table for selected date
   const dayRecords = useMemo(() => {
-    if (!db) return [];
-    return db.staff.map((s) => {
+    return staffList.map((s) => {
       const rec = (s.attendance || []).find((a) => a.date === filterDate);
       return {
         id: s.id,
@@ -124,7 +129,7 @@ export default function AttendancePage() {
         isOnBreak: !!rec?.isOnBreak || (!!rec?.breakStart && !rec?.breakEnd),
       };
     });
-  }, [db, filterDate]);
+  }, [staffList, filterDate]);
 
   const presentCount = dayRecords.filter((r) => r.status === 'Present' || r.status === 'Late').length;
   const lateCount = dayRecords.filter((r) => r.status === 'Late').length;
@@ -149,7 +154,7 @@ export default function AttendancePage() {
             sub={onBreakCount > 0 ? `${onBreakCount} staff on break now` : 'All breaks completed'}
             tone="amber"
           />
-          <StatCard icon={Clock} label="Total staff" value={String(db.staff.length)} tone="sky" />
+          <StatCard icon={Clock} label="Total staff" value={String(staffList.length)} tone="sky" />
         </div>
 
         <Card className="p-5">
