@@ -3,32 +3,58 @@ import type { ReportAnalyte } from './report-types';
 const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
 
 const CBC_REFERENCE_RANGES: Record<string, string> = {
+  // WBC & Differential Counts
+  wbc: '6.00-17.00',
+  totalwbccount: '6.00-17.00',
+  'lym#': '0.83-4.91',
+  lymphocytescount: '0.83-4.91',
+  'mid#': '0.18-3.71',
+  midcount: '0.18-3.71',
+  'gran#': '3.62-12.30',
+  granulocytescount: '3.62-12.30',
+
+  // Differential Percentages
+  'lym%': '12.0-33.0',
+  lymphocytes: '12.0-33.0',
+  'mid%': '2.5-24.3',
+  mid: '2.5-24.3',
+  'gran%': '52.0-81.0',
+  granulocytes: '52.0-81.0',
+
+  // RBC Parameters
+  rbc: '5.10-8.50',
+  rbccount: '5.10-8.50',
+  hgb: '11.0-19.0',
+  hb: '11.0-19.0',
   haemoglobin: '11.0-19.0',
   hemoglobin: '11.0-19.0',
-  totalwbccount: '6.00-17.00',
-  granulocytes: '52.0-81.0',
-  lymphocytes: '12.0-33.0',
-  mid: '2.5-24.3',
-  granulocytescount: '3.62-12.30',
-  lymphocytescount: '0.83-4.91',
-  midcount: '0.18-3.71',
-  rbccount: '5.10-8.50',
+  hct: '33.0-56.0',
   haematocritpcv: '33.0-56.0',
   hematocritpcv: '33.0-56.0',
   mcv: '60.0-76.0',
   mch: '20.0-27.0',
   mchc: '30.0-38.0',
+  'rdw-cv': '0.125-0.172',
   rdwcv: '0.125-0.172',
+  'rdw-sd': '33.2-46.3',
   rdwsd: '33.2-46.3',
+
+  // Platelet Parameters
+  plt: '117-490',
   plateletcount: '117-490',
-  pct: '0.40-0.85',
   mpv: '8.0-14.1',
+  'pdw-cv': '0.133-0.185',
   pdwcv: '0.133-0.185',
+  'pdw-sd': '',
+  pdwsd: '',
+  pct: '0.40-0.85',
+  'p-lcc': '45-170',
   plcc: '45-170',
+  'p-lcr': '0.200-0.600',
   plcr: '0.200-0.600',
 };
 
-const normalizeAnalyteName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+const normalizeAnalyteName = (value: string) => value.toLowerCase().replace(/[^a-z0-9#%]+/g, '');
 
 export function cbcReferenceRangeFor(name: string): string {
   return CBC_REFERENCE_RANGES[normalizeAnalyteName(name)] || '';

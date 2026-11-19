@@ -30,6 +30,53 @@ class CbcParsingTest(unittest.TestCase):
         self.assertTrue(by_name['PLR']['needsReview'])
         self.assertFalse(by_name['WBC']['needsReview'])
 
+    def test_reads_combined_flag_and_number_and_normalizes_units(self):
+        detections = [
+            det('Para', 290, 136), det('Result', 430, 136), det('Unit', 540, 136),
+            det('Para', 640, 136), det('Result', 790, 136), det('Unit', 900, 136),
+            # Combined 'H 22.06'
+            det('WBC', 300, 182), det('H 22.06', 430, 182), det('10^9/L', 572, 182),
+            # Combined 'H 67.7'
+            det('MCV', 640, 182), det('H 67.7', 790, 182), det('fL', 900, 182),
+            # Combined 'L 17.7' and unit '9/6' (OCR corruption of %)
+            det('HCT', 300, 600), det('L 17.7', 430, 600), det('9/6', 572, 600),
+            # Unit '%/%'
+            det('Gran%', 300, 450), det('21.7', 430, 450), det('%/%', 572, 450),
+        ]
+        rows = parse_page(detections, 1429, 'CBC')
+        by_name = {row['name']: row for row in rows}
+
+        self.assertEqual(by_name['WBC']['result'], '22.06')
+        self.assertEqual(by_name['WBC']['remarks'], 'H')
+        self.assertEqual(by_name['WBC']['unit'], '10^9/L')
+
+        self.assertEqual(by_name['MCV']['result'], '67.7')
+        self.assertEqual(by_name['MCV']['remarks'], 'H')
+        self.assertEqual(by_name['MCV']['unit'], 'fL')
+
+        self.assertEqual(by_name['HCT']['result'], '17.7')
+        self.assertEqual(by_name['HCT']['remarks'], 'L')
+        self.assertEqual(by_name['HCT']['unit'], '%')
+
+        self.assertEqual(by_name['Gran%']['result'], '21.7')
+        self.assertEqual(by_name['Gran%']['unit'], '%')
+
+    def test_orders_parameters_line_by_line_matching_analyser_photo(self):
+        detections = [
+            det('Para', 290, 136), det('Result', 430, 136), det('Unit', 540, 136),
+            det('Para', 640, 136), det('Result', 790, 136), det('Unit', 900, 136),
+            det('WBC', 300, 182), det('22.06', 430, 182),
+            det('MCV', 640, 182), det('67.7', 790, 182),
+            det('Lym#', 300, 220), det('11.27', 430, 220),
+            det('MCH', 640, 220), det('21.2', 790, 220),
+            det('Mid#', 300, 260), det('6.00', 430, 260),
+            det('MCHC', 640, 260), det('31.3', 790, 260),
+        ]
+        rows = parse_page(detections, 1429, 'CBC')
+        names = [r['name'] for r in rows]
+        # Must be Line 1 (WBC, MCV), Line 2 (Lym#, MCH), Line 3 (Mid#, MCHC)
+        self.assertEqual(names, ['WBC', 'MCV', 'Lym#', 'MCH', 'Mid#', 'MCHC'])
+
     def test_ignores_histogram_labels_outside_table(self):
         detections = [
             det('Para', 290, 136), det('Unit', 540, 136), det('Para', 640, 136), det('Unit', 900, 136),
