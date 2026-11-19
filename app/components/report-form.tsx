@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, FileImage, Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Button, DateInput, EmptyState, Field, Input, Select, Textarea } from './ui';
+import { alertModal } from './confirm-dialog';
 import { authFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
 import { DEFAULT_REPORT_BANNER } from '../lib/report-default-banner';
@@ -53,6 +54,17 @@ const buildOtherRows = (subType: OtherTestType): ReportAnalyte[] => {
 };
 
 const MAX_PHOTOS = 10;
+
+const cleanErrorMessage = (err: unknown, fallback: string): string => {
+  const raw = (err instanceof Error ? err.message : String(err || '')).trim();
+  if (!raw || /500|failed \(500\)|internal server|something went wrong/i.test(raw)) {
+    return 'The report scanner could not process the photo. Please make sure the image is clear and sharp, and try again.';
+  }
+  if (/502|503|504|timeout|not reachable|not connected|fetch failed|network/i.test(raw)) {
+    return 'The report scanner service is temporarily busy or unreachable. Please wait a moment and try again.';
+  }
+  return raw || fallback;
+};
 
 export default function ReportForm({ owners, pets, report, onSaved }: Props) {
   const [reportType, setReportType] = useState<ReportType>(report?.reportType ?? 'BIO');
@@ -198,7 +210,13 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       const summary = `${mergedRows.length} result rows read from ${photos.length} image${photos.length === 1 ? '' : 's'}.`;
       setNotice([summary, ...allWarnings].filter(Boolean).join(' '));
     } catch (err) {
-      setError((err as Error).message || 'Could not read the uploaded images.');
+      const friendlyMessage = cleanErrorMessage(err, 'Could not read the uploaded images. Please try again with a clearer photo.');
+      setError(friendlyMessage);
+      await alertModal({
+        title: 'Extraction Notice',
+        message: friendlyMessage,
+        icon: 'warning',
+      });
     } finally {
       setOcrBusy(false);
     }
@@ -302,7 +320,13 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
       openPdfBlobInNewTab(pdf);
       onSaved(saved);
     } catch (err) {
-      setError((err as Error).message || 'Could not save the report.');
+      const friendlyMessage = cleanErrorMessage(err, 'Could not save the report. Please try again.');
+      setError(friendlyMessage);
+      await alertModal({
+        title: 'Save Report Notice',
+        message: friendlyMessage,
+        icon: 'warning',
+      });
     } finally {
       setSaveBusy(false);
     }
@@ -530,13 +554,6 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
           {saveBusy ? 'Generating...' : `Generate ${reportType === 'OTHER' ? otherTestType : reportType} PDF`}
         </Button>
       </div>
-
-      {reportType !== 'OTHER' && (
-        <details className="mt-5 text-xs text-ink/45">
-          <summary className="cursor-pointer">View OCR text</summary>
-          <Textarea className="mt-2" rows={6} value={ocrText} onChange={(event) => setOcrText(event.target.value)} />
-        </details>
-      )}
     </div>
   );
 }
