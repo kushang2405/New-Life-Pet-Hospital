@@ -328,9 +328,10 @@ function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], sta
   });
 
   const totalRows = rows.length;
+  const ROW_H = 23;
 
   if (totalRows <= 13) {
-    let cursor = startY;
+    let cursor = startY + 20;
     const sections: [string, ReportAnalyte[]][] = [
       ['Kidney Profile', kidneyRows],
       ['Liver Profile', liverRows],
@@ -344,9 +345,9 @@ function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], sta
       cursor = drawSectionTitle(doc, secName, cursor, false);
       secRows.forEach((r) => {
         drawBioRow(doc, r, cursor);
-        cursor += 20;
+        cursor += ROW_H;
       });
-      cursor += 12;
+      cursor += 16;
     });
 
     if (cursor < 640) {
@@ -358,25 +359,37 @@ function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], sta
   }
 
   // 2-page layout matching sample PDF
-  // Page 1
-  let cursor = startY;
+  // Page 1:
+  // Center Kidney Profile and Liver Profile vertically between startY and footer (805)
+  // Kidney Profile: 5 rows
+  // Liver Profile: first 10 rows
+  const page1Liver = liverRows.slice(0, 10);
+  const page2Liver = liverRows.slice(10);
+
+  const page1KidneyH = (kidneyRows.length > 0 ? 45 + kidneyRows.length * ROW_H : 0);
+  const page1LiverH = (page1Liver.length > 0 ? 45 + page1Liver.length * ROW_H : 0);
+  const page1Gap = (page1KidneyH > 0 && page1LiverH > 0 ? 32 : 0);
+  const page1ContentH = page1KidneyH + page1Gap + page1LiverH;
+
+  // Center vertically between header divider (startY - 18) and footer (805)
+  const page1Available = 805 - (startY - 18);
+  const page1TopMargin = Math.max(25, Math.round((page1Available - page1ContentH) / 2));
+  let cursor = (startY - 18) + page1TopMargin;
+
   if (kidneyRows.length > 0) {
     cursor = drawSectionTitle(doc, 'Kidney Profile', cursor, false);
     kidneyRows.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
-    cursor += 12;
+    cursor += page1Gap;
   }
-
-  const page1Liver = liverRows.slice(0, 10);
-  const page2Liver = liverRows.slice(10);
 
   if (page1Liver.length > 0) {
     cursor = drawSectionTitle(doc, 'Liver Profile', cursor, false);
     page1Liver.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
   }
   drawBioFooter(doc, 1, 2);
@@ -384,44 +397,45 @@ function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], sta
   // Page 2
   doc.addPage();
   cursor = drawPageStart(doc, draft);
+  cursor += 15;
 
   if (page2Liver.length > 0) {
     cursor = drawSectionTitle(doc, 'Liver Profile', cursor, false);
     page2Liver.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
-    cursor += 12;
+    cursor += 18;
   }
 
   if (pancRows.length > 0) {
     cursor = drawSectionTitle(doc, 'Pancreatic Profile', cursor, false);
     pancRows.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
-    cursor += 12;
+    cursor += 18;
   }
 
   if (lipidRows.length > 0) {
     cursor = drawSectionTitle(doc, 'Lipid Profile', cursor, false);
     lipidRows.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
-    cursor += 12;
+    cursor += 18;
   }
 
   if (otherRows.length > 0) {
     cursor = drawSectionTitle(doc, 'Other', cursor, false);
     otherRows.forEach((r) => {
       drawBioRow(doc, r, cursor);
-      cursor += 20;
+      cursor += ROW_H;
     });
-    cursor += 12;
+    cursor += 18;
   }
 
-  drawPotentialInterference(doc, Math.min(cursor + 12, 650));
+  drawPotentialInterference(doc, Math.min(cursor + 10, 650));
   drawDoctorSignature(doc, draft, 720);
   drawBioFooter(doc, 2, 2);
 }
