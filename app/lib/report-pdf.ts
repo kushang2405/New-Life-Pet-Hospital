@@ -274,12 +274,6 @@ function drawBioFooter(doc: jsPDF, pageNum: number, totalPages: number): void {
   doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(90, 90, 90);
-  doc.text('*This is not a legal document', 38, 805);
-  doc.text(
-    '*This blood sample is analyzed on MISPA ChemDx AUTO DRY BIOCHEMISTRY ANALYZER of veterinary mode. All results are intended to be correlated with clinical findings for final diagnosis.',
-    38,
-    815,
-  );
   doc.text(`Page ${pageNum} of ${totalPages}`, 554, 805, { align: 'right' });
 }
 
