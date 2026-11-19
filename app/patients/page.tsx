@@ -401,7 +401,7 @@ export default function PatientsPage() {
           <div>
             <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide mb-2">Owner Details</div>
             <div className="space-y-3">
-              <Field label="Owner">
+              <Field label="Select Existing Owner">
                 <Select
                   value={selectedOwnerId}
                   onChange={(e) => {
@@ -419,7 +419,7 @@ export default function PatientsPage() {
                     }
                   }}
                 >
-                  <option value="">+ New Owner (Enter Details Below)</option>
+                  <option value="">Select Existing Owner</option>
                   {sortedOwners.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.name} {o.phone ? `(${o.phone})` : ''}
@@ -449,7 +449,7 @@ export default function PatientsPage() {
                     }}
                     className="text-xs text-plum hover:text-plum/80"
                   >
-                    + Switch to New Owner
+                    Clear / New Owner
                   </Button>
                 </div>
               ) : (
