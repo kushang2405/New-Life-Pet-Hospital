@@ -1,12 +1,12 @@
 import { jsPDF } from 'jspdf';
-import { applyCbcReferenceRanges, formatPetAge, normalizeReferenceRange, normalizeResultValue, resultInRange } from './report-parser';
+import { applyBioDefaults, applyCbcReferenceRanges, formatPetAge, normalizeReferenceRange, normalizeResultValue, resultInRange } from './report-parser';
 import type { ReportAnalyte, ReportDraft, ReportType } from './report-types';
 import { DEFAULT_REPORT_BANNER } from './report-default-banner';
 
 const TEXT_COLOR: [number, number, number] = [25, 25, 25];
 const IN_RANGE_COLOR: [number, number, number] = [30, 80, 200];
 const OUT_OF_RANGE_COLOR: [number, number, number] = [200, 35, 35];
-const COLUMNS = [38, 190, 276, 350, 456, 554];
+const COLUMNS = [38, 215, 285, 355, 475, 554];
 const CBC_COLUMNS = [73, 228, 313, 398];
 const CBC_TABLE_START_X = 73;
 const CBC_TABLE_WIDTH = 450;
@@ -198,7 +198,7 @@ function drawColumnHeader(doc: jsPDF, y: number, cbc: boolean): number {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   const labels = ['Analyte or Parameter', 'Result', 'Unit', 'Reference Range', 'Remarks'];
-  labels.forEach((label, index) => doc.text(label, COLUMNS[index] + 3, y));
+  labels.forEach((label, index) => doc.text(label, COLUMNS[index] + 4, y));
   doc.setFont('helvetica', 'normal');
   return y + 20;
 }
@@ -224,16 +224,37 @@ function drawResult(doc: jsPDF, value: string, inRange: boolean | null, x: numbe
 
 function drawBioRow(doc: jsPDF, row: ReportAnalyte, y: number): void {
   const normalized = normalizedRow(row);
-  doc.setDrawColor(190, 190, 190);
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
   doc.line(38, y + 7, 554, y + 7);
+
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(row.name.slice(0, 28), COLUMNS[0] + 3, y);
+  doc.setTextColor(...TEXT_COLOR);
+  doc.text(row.name, COLUMNS[0] + 4, y);
+
   doc.setFont('helvetica', 'normal');
-  drawResult(doc, normalized.result.slice(0, 14), normalized.inRange, COLUMNS[1] + 3, y);
-  doc.text(row.unit.slice(0, 14), COLUMNS[2] + 3, y);
-  doc.text(normalized.referenceRange.slice(0, 18), COLUMNS[3] + 3, y);
-  doc.text(row.remarks.slice(0, 12), COLUMNS[4] + 3, y);
+  if (row.remarks === 'H') {
+    doc.setTextColor(...OUT_OF_RANGE_COLOR);
+  } else if (row.remarks === 'L') {
+    doc.setTextColor(...IN_RANGE_COLOR);
+  } else if (normalized.inRange !== null) {
+    doc.setTextColor(...(normalized.inRange ? IN_RANGE_COLOR : OUT_OF_RANGE_COLOR));
+  } else {
+    doc.setTextColor(...TEXT_COLOR);
+  }
+  doc.text(normalized.result, COLUMNS[1] + 4, y);
+
+  doc.setTextColor(...TEXT_COLOR);
+  doc.text(row.unit || '', COLUMNS[2] + 4, y);
+  doc.text(normalized.referenceRange || '', COLUMNS[3] + 4, y);
+
+  if (row.remarks === 'H' || row.remarks === 'L') {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...(row.remarks === 'H' ? OUT_OF_RANGE_COLOR : IN_RANGE_COLOR));
+  }
+  doc.text(row.remarks || '', COLUMNS[4] + 4, y);
+  doc.setTextColor(...TEXT_COLOR);
 }
 
 function drawCbcRow(doc: jsPDF, row: ReportAnalyte, y: number): void {
@@ -249,34 +270,160 @@ function drawCbcRow(doc: jsPDF, row: ReportAnalyte, y: number): void {
   doc.text(normalized.referenceRange.slice(0, 18), CBC_COLUMNS[3] + 4, y);
 }
 
-function groupRowsBySection(rows: ReportAnalyte[], fallback: string): Map<string, ReportAnalyte[]> {
-  const groups = new Map<string, ReportAnalyte[]>();
-  rows.forEach((row) => {
-    const section = row.section || fallback;
-    groups.set(section, [...(groups.get(section) || []), row]);
-  });
-  return groups;
+function drawBioFooter(doc: jsPDF, pageNum: number, totalPages: number): void {
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(90, 90, 90);
+  doc.text('*This is not a legal document', 38, 805);
+  doc.text(
+    '*This blood sample is analyzed on MISPA ChemDx AUTO DRY BIOCHEMISTRY ANALYZER of veterinary mode. All results are intended to be correlated with clinical findings for final diagnosis.',
+    38,
+    815,
+  );
+  doc.text(`Page ${pageNum} of ${totalPages}`, 554, 805, { align: 'right' });
 }
 
-function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], y: number): number {
-  let cursor = y;
-  groupRowsBySection(rows, draft.reportType).forEach((sectionRows, section) => {
-    if (cursor > 700) {
-      doc.addPage();
-      cursor = drawPageStart(doc, draft);
-    }
-    cursor = drawSectionTitle(doc, section, cursor, false);
-    sectionRows.forEach((row) => {
-      if (cursor > 760) {
-        doc.addPage();
-        cursor = drawPageStart(doc, draft);
-        cursor = drawSectionTitle(doc, section, cursor, false);
-      }
-      drawBioRow(doc, row, cursor);
-      cursor += 22;
-    });
+function drawPotentialInterference(doc: jsPDF, y: number): number {
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 70, 70);
+  const interferenceText =
+    'Potential Interference if value exceeds: Analyte: Bilirubin (mg/dl)/ Vitamin C (mg/dl)/ Haemoglobin (gm/l): ALB *40 200 *5 - ALP *40 200 *3 -ALT *20 200 *5 - AST *20 200 *3- CHE *40 200 *8- DB \u2014 *5 *3- GGT *40 200 *5- TB \u2014 *75 *2 TBA- *40 200 *5- TP *25 *100 *3 -Crea *5 *0.5 *3 - UA *3 *0.5 *3 - UREA *25 200 *5 - GLU *40 *50 *5 - CK *80 200 *3 - HDL *5 *0.5 *3 - TC *40 *40 *5 - TG * 40 *50 *3 - AMY * 40 *100 *5';
+  const wrappedInterference = doc.splitTextToSize(interferenceText, 516) as string[];
+  doc.text(wrappedInterference, 38, y);
+  return y + wrappedInterference.length * 9;
+}
+
+function drawDoctorSignature(doc: jsPDF, draft: ReportDraft, sigY = 720): void {
+  doc.setDrawColor(150, 150, 150);
+  doc.setLineWidth(0.5);
+  doc.line(420, sigY, 554, sigY);
+  doc.setTextColor(...TEXT_COLOR);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(formatDoctorName(draft.patientDetails.doctorName), 420, sigY + 14);
+  doc.setFont('helvetica', 'normal');
+  doc.text(draft.patientDetails.doctorPosition || 'M.V.Sc (SURGERY & RADIOLOGY)', 420, sigY + 26);
+  const approvedDate = formatApprovedDate(draft.patientDetails.date);
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 60, 60);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`** This is an Electronically Approved Report.   **Report Approved on : ${approvedDate}`, 38, sigY + 40);
+}
+
+function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], startY: number): void {
+  const kidneyRows: ReportAnalyte[] = [];
+  const liverRows: ReportAnalyte[] = [];
+  const pancRows: ReportAnalyte[] = [];
+  const lipidRows: ReportAnalyte[] = [];
+  const otherRows: ReportAnalyte[] = [];
+
+  rows.forEach((r) => {
+    const s = (r.section || '').toLowerCase();
+    if (s.includes('kidney')) kidneyRows.push(r);
+    else if (s.includes('liver')) liverRows.push(r);
+    else if (s.includes('panc')) pancRows.push(r);
+    else if (s.includes('lipid')) lipidRows.push(r);
+    else otherRows.push(r);
   });
-  return cursor;
+
+  const totalRows = rows.length;
+
+  if (totalRows <= 13) {
+    let cursor = startY;
+    const sections: [string, ReportAnalyte[]][] = [
+      ['Kidney Profile', kidneyRows],
+      ['Liver Profile', liverRows],
+      ['Pancreatic Profile', pancRows],
+      ['Lipid Profile', lipidRows],
+      ['Other', otherRows],
+    ];
+
+    sections.forEach(([secName, secRows]) => {
+      if (!secRows.length) return;
+      cursor = drawSectionTitle(doc, secName, cursor, false);
+      secRows.forEach((r) => {
+        drawBioRow(doc, r, cursor);
+        cursor += 20;
+      });
+      cursor += 12;
+    });
+
+    if (cursor < 640) {
+      drawPotentialInterference(doc, cursor + 8);
+    }
+    drawDoctorSignature(doc, draft, 720);
+    drawBioFooter(doc, 1, 1);
+    return;
+  }
+
+  // 2-page layout matching sample PDF
+  // Page 1
+  let cursor = startY;
+  if (kidneyRows.length > 0) {
+    cursor = drawSectionTitle(doc, 'Kidney Profile', cursor, false);
+    kidneyRows.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+    cursor += 12;
+  }
+
+  const page1Liver = liverRows.slice(0, 10);
+  const page2Liver = liverRows.slice(10);
+
+  if (page1Liver.length > 0) {
+    cursor = drawSectionTitle(doc, 'Liver Profile', cursor, false);
+    page1Liver.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+  }
+  drawBioFooter(doc, 1, 2);
+
+  // Page 2
+  doc.addPage();
+  cursor = drawPageStart(doc, draft);
+
+  if (page2Liver.length > 0) {
+    cursor = drawSectionTitle(doc, 'Liver Profile', cursor, false);
+    page2Liver.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+    cursor += 12;
+  }
+
+  if (pancRows.length > 0) {
+    cursor = drawSectionTitle(doc, 'Pancreatic Profile', cursor, false);
+    pancRows.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+    cursor += 12;
+  }
+
+  if (lipidRows.length > 0) {
+    cursor = drawSectionTitle(doc, 'Lipid Profile', cursor, false);
+    lipidRows.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+    cursor += 12;
+  }
+
+  if (otherRows.length > 0) {
+    cursor = drawSectionTitle(doc, 'Other', cursor, false);
+    otherRows.forEach((r) => {
+      drawBioRow(doc, r, cursor);
+      cursor += 20;
+    });
+    cursor += 12;
+  }
+
+  drawPotentialInterference(doc, Math.min(cursor + 12, 650));
+  drawDoctorSignature(doc, draft, 720);
+  drawBioFooter(doc, 2, 2);
 }
 
 function drawCbcTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], y: number): number {
@@ -469,27 +616,17 @@ function drawOtherTable(
 export function createReportPdf(draft: ReportDraft): Blob {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const y = drawPageStart(doc, draft);
-  const analytes = draft.reportType === 'CBC' ? applyCbcReferenceRanges(draft.analytes) : draft.analytes;
   if (draft.reportType === 'CBC') {
+    const analytes = applyCbcReferenceRanges(draft.analytes);
     drawCbcTable(doc, draft, analytes, y);
+    drawDoctorSignature(doc, draft, 725);
   } else if (draft.reportType === 'OTHER') {
     drawOtherTable(doc, draft, draft.analytes, y, draft.interpretation);
+    drawDoctorSignature(doc, draft, 725);
   } else {
-    drawBioTable(doc, draft, draft.analytes, y);
+    const analytes = applyBioDefaults(draft.analytes);
+    drawBioTable(doc, draft, analytes, y);
   }
-  doc.setDrawColor(150, 150, 150);
-  doc.line(420, 725, 554, 725);
-  doc.setTextColor(...TEXT_COLOR);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(formatDoctorName(draft.patientDetails.doctorName), 420, 739);
-  doc.setFont('helvetica', 'normal');
-  doc.text(draft.patientDetails.doctorPosition || 'M.V.Sc (SURGERY & RADIOLOGY)', 420, 752);
-  const approvedDate = formatApprovedDate(draft.patientDetails.date);
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 60, 60);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`** This is an Electronically Approved Report.   **Report Approved on : ${approvedDate}`, 38, 766);
   return doc.output('blob');
 }
 

@@ -113,7 +113,7 @@ class BioParsingTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['result'], '< 0.0')
         self.assertEqual(rows[0]['referenceRange'], '0.2-1.2')
-        self.assertEqual(rows[0]['unit'], '')
+        self.assertEqual(rows[0]['unit'], 'mg/dL')
 
     def test_handles_sidebar_and_action_buttons_without_dropping_rows(self):
         detections = [

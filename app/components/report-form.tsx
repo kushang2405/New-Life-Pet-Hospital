@@ -8,7 +8,7 @@ import { authFetch } from '../lib/auth';
 import { fetchLetterhead } from '../lib/certificate-letterhead';
 import { DEFAULT_REPORT_BANNER } from '../lib/report-default-banner';
 import { compressReportImage } from '../lib/report-images';
-import { applyCbcReferenceRanges, formatPetAge } from '../lib/report-parser';
+import { applyBioDefaults, applyCbcReferenceRanges, computeRemark, formatPetAge } from '../lib/report-parser';
 import { createReportPdf, openPdfBlobInNewTab, optimizeLogoForPdf } from '../lib/report-pdf';
 import {
   OTHER_TEST_DEFINITIONS,
@@ -36,7 +36,11 @@ const defaultSection = (type: ReportType, otherSub?: string) => {
   return 'Kidney Profile';
 };
 
-const applyReferenceRanges = (rows: ReportAnalyte[], type: ReportType) => (type === 'CBC' ? applyCbcReferenceRanges(rows) : rows);
+const applyReferenceRanges = (rows: ReportAnalyte[], type: ReportType) => {
+  if (type === 'CBC') return applyCbcReferenceRanges(rows);
+  if (type === 'BIO') return applyBioDefaults(rows);
+  return rows;
+};
 const emptyRow = (type: ReportType, otherSub?: string): ReportAnalyte => ({ section: defaultSection(type, otherSub), name: '', result: '', unit: '', referenceRange: '', remarks: '' });
 
 const buildOtherRows = (subType: OtherTestType): ReportAnalyte[] => {
@@ -151,7 +155,14 @@ export default function ReportForm({ owners, pets, report, onSaved }: Props) {
 
   const updateDetails = (key: keyof PatientDetails, value: string) => setDetails((current) => ({ ...current, [key]: value }));
   const updateRow = (index: number, key: keyof ReportAnalyte, value: string) => {
-    setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value, needsReview: false } : row)));
+    setRows((current) => current.map((row, rowIndex) => {
+      if (rowIndex !== index) return row;
+      const updated = { ...row, [key]: value, needsReview: false };
+      if (key === 'result' || key === 'referenceRange') {
+        updated.remarks = computeRemark(updated.result, updated.referenceRange, updated.remarks);
+      }
+      return updated;
+    }));
   };
 
   const addPhotos = (fileList: FileList | null) => {

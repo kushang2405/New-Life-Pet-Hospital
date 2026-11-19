@@ -117,20 +117,49 @@ BIO_ALIASES = {
     'TP': 'Total protein', 'ALB': 'Albumin', 'GLOB': 'Globulin', 'A/G': 'A/G Ratio',
     'TB': 'Total bilirubin', 'DB': 'Direct bilirubin', 'IBIL': 'Indirect bilirubin',
     'GGT': 'Gamma-glutamyl transpeptidase (GGT)', 'AST': 'Aspartate aminotransferase (AST)',
-    'ALT': 'Alanine Transaminase (ALT)', 'ALP': 'ALP', 'CHE': 'CHE',
-    'TBA': 'TBA', 'AMY': 'AMY', 'CK': 'CK',
+    'ALT': 'Alanine Transaminase (ALT)', 'ALP': 'Alkaline phosphatase', 'CHE': 'Cholinesterase',
+    'TBA': 'Thiobarbituric acid (TBA)', 'AMY': 'Amylase', 'CK': 'Creatine kinase MB (CK-MB)',
     'Crea': 'Creatinine', 'CREA': 'Creatinine',
     'eGFRcr': 'eGFRcr', 'EGFRCR': 'eGFRcr',
     'UA': 'Uric Acid', 'UREA': 'Urea', 'U/C': 'U/C Ratio',
-    'GLU': 'GLU', 'TC': 'TC', 'TG': 'TG', 'HDL': 'HDL', 'LDL': 'LDL',
+    'GLU': 'Glucose', 'TC': 'Total Cholesterol', 'TG': 'Triglycerides',
+    'HDL': 'HDL Cholesterol', 'LDL': 'LDL Cholesterol',
+}
+BIO_DEFAULT_UNITS = {
+    'Urea': 'mg/dL', 'Creatinine': 'mg/dL', 'Uric Acid': 'mg/dL', 'U/C Ratio': '',
+    'Creatine kinase MB (CK-MB)': 'U/L', 'CK': 'U/L',
+    'Total protein': 'g/dL', 'Albumin': 'g/dL', 'Globulin': 'g/L', 'A/G Ratio': '',
+    'Total bilirubin': 'mg/dL', 'Direct bilirubin': 'mg/dL', 'Indirect bilirubin': 'umol/L',
+    'Gamma-glutamyl transpeptidase (GGT)': 'U/L', 'Aspartate aminotransferase (AST)': 'U/L',
+    'Alanine Transaminase (ALT)': 'U/L', 'Alkaline phosphatase': 'U/L', 'ALP': 'U/L',
+    'Cholinesterase': 'U/L', 'CHE': 'U/L',
+    'Thiobarbituric acid (TBA)': 'umol/L', 'TBA': 'umol/L', 'eGFRcr': '',
+    'Amylase': 'U/L', 'AMY': 'U/L',
+    'Total Cholesterol': 'mg/dL', 'TC': 'mg/dL',
+    'Triglycerides': 'mg/dL', 'TG': 'mg/dL',
+    'HDL Cholesterol': 'mg/dL', 'HDL': 'mg/dL',
+    'LDL Cholesterol': 'mg/dL', 'LDL': 'mg/dL',
+    'Glucose': 'mg/dL', 'GLU': 'mg/dL',
 }
 BIO_SECTION_GROUPS = {
-    'Liver Profile': ['Total protein', 'Albumin', 'Globulin', 'A/G Ratio', 'Total bilirubin', 'Direct bilirubin',
-                      'Indirect bilirubin', 'Gamma-glutamyl transpeptidase (GGT)',
-                      'Aspartate aminotransferase (AST)', 'Alanine Transaminase (ALT)', 'ALP', 'TBA', 'CHE'],
-    'Kidney Profile': ['Urea', 'Creatinine', 'Uric Acid', 'U/C Ratio', 'eGFRcr'],
-    'Pancreatic Profile': ['AMY'],
-    'Lipid Profile': ['TC', 'TG', 'HDL', 'LDL'],
+    'Kidney Profile': [
+        'Urea', 'Creatinine', 'Uric Acid', 'U/C Ratio', 'Creatine kinase MB (CK-MB)', 'CK'
+    ],
+    'Liver Profile': [
+        'Total protein', 'Albumin', 'Globulin', 'A/G Ratio', 'Total bilirubin',
+        'Direct bilirubin', 'Indirect bilirubin', 'Gamma-glutamyl transpeptidase (GGT)',
+        'Aspartate aminotransferase (AST)', 'Alanine Transaminase (ALT)',
+        'Alkaline phosphatase', 'ALP', 'Cholinesterase', 'CHE',
+        'Thiobarbituric acid (TBA)', 'TBA', 'eGFRcr'
+    ],
+    'Pancreatic Profile': [
+        'Amylase', 'AMY'
+    ],
+    'Lipid Profile': [
+        'Total Cholesterol', 'TC', 'Triglycerides', 'TG',
+        'HDL Cholesterol', 'HDL', 'LDL Cholesterol', 'LDL',
+        'Glucose', 'GLU'
+    ],
 }
 BIO_SECTIONS = {name: section for section, names in BIO_SECTION_GROUPS.items() for name in names}
 
@@ -482,32 +511,80 @@ def parse_bio_cells(tokens, source_img=None):
 
     canonical_name = BIO_ALIASES.get(name, name)
     section = BIO_SECTIONS.get(canonical_name, 'Other')
+    final_unit = unit or BIO_DEFAULT_UNITS.get(canonical_name, '')
 
     return {
         'name': canonical_name,
         'result': clean_result(result),
-        'unit': unit,
+        'unit': final_unit,
         'referenceRange': reference,
         'remarks': flag,
         'scores': scores,
     }
 
 
+def calculate_remark(result_str, range_str, default_flag=''):
+    if not range_str:
+        return default_flag or ''
+    m_range = re.match(r'^(-?\d+(?:\.\d+)?)\s*[-–—~]{1,2}\s*(\d+(?:\.\d+)?)$', range_str.strip())
+    if not m_range:
+        return default_flag or ''
+    low = float(m_range.group(1))
+    high = float(m_range.group(2))
+
+    res_clean = result_str.strip()
+    m_less = re.match(r'^<\s*(-?\d+(?:\.\d+)?)$', res_clean)
+    if m_less:
+        val = float(m_less.group(1))
+        if val <= low:
+            return 'L'
+        if val > high:
+            return 'H'
+        return ''
+
+    m_greater = re.match(r'^>\s*(-?\d+(?:\.\d+)?)$', res_clean)
+    if m_greater:
+        val = float(m_greater.group(1))
+        if val >= high:
+            return 'H'
+        if val < low:
+            return 'L'
+        return ''
+
+    num_match = re.search(r'-?\d+(?:\.\d+)?', res_clean)
+    if not num_match:
+        return default_flag or ''
+    try:
+        val = float(num_match.group(0))
+        if val > high:
+            return 'H'
+        if val < low:
+            return 'L'
+        if (val <= low or val >= high) and default_flag in ('H', 'L'):
+            return default_flag
+        return ''
+    except ValueError:
+        return default_flag or ''
+
+
 def to_analyte(row, report_type):
     if report_type == 'BIO':
         name = BIO_ALIASES.get(row['name'], row['name'])
         section = BIO_SECTIONS.get(name, 'Other')
+        unit = row['unit'] or BIO_DEFAULT_UNITS.get(name, '')
     else:
         name = row['name']
         section = 'CBC'
+        unit = row['unit']
     scores = row['scores']
+    remark = calculate_remark(row['result'], row['referenceRange'], row['remarks'])
     return {
         'section': section,
         'name': name,
         'result': row['result'],
-        'unit': row['unit'],
+        'unit': unit,
         'referenceRange': row['referenceRange'],
-        'remarks': row['remarks'],
+        'remarks': remark,
         'confidence': round(sum(scores) / len(scores), 3),
         'needsReview': min(scores) < LOW_CONFIDENCE or not re.search(r'\d', row['result']),
     }
