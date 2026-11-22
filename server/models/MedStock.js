@@ -6,6 +6,8 @@ const BatchSchema = new mongoose.Schema(
     batchNumber: { type: String, default: '' },
     quantity: { type: Number, default: 0 },
     expiry: { type: String, default: '' },
+    expireAt: { type: String, default: '' },
+    manufactureDate: { type: String, default: '' },
     receivedDate: { type: String, default: '' },
     supplierId: { type: String, default: '' },
     costPerUnit: { type: Number, default: 0 },
@@ -44,6 +46,8 @@ const MedStockSchema = new mongoose.Schema(
     batches: [BatchSchema],
     batch: { type: String, default: '' },
     expiry: { type: String, default: '' },
+    expireAt: { type: String, default: '' },
+    manufactureDate: { type: String, default: '' },
 
     createdAt: { type: String, default: '' },
   },

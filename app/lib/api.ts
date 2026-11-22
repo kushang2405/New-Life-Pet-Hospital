@@ -228,6 +228,8 @@ export type Batch = {
   batchNumber: string;
   quantity: number;
   expiry: string;
+  expireAt?: string;
+  manufactureDate?: string;
   receivedDate: string;
   supplierId: string;
   costPerUnit: number;
@@ -258,6 +260,8 @@ export type MedStock = {
   batches: Batch[];
   batch: string;
   expiry: string;
+  expireAt?: string;
+  manufactureDate?: string;
   createdAt: string;
 };
 
@@ -367,6 +371,9 @@ export type InventoryItem = {
   damaged: number;
   supplier: string;
   supplierId: string;
+  manufactureDate?: string;
+  expireAt?: string;
+  expiry?: string;
   notes: string;
   createdAt: string;
 };

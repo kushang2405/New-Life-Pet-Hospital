@@ -41,7 +41,7 @@ const adjustKinds: { value: AdjustKind; label: string }[] = [
 
 type Tab = 'inventory' | 'suppliers' | 'purchases' | 'dispensing' | 'sales';
 
-const blankBatch = (): Batch => ({ id: '', batchNumber: '', quantity: 0, expiry: '', receivedDate: '', supplierId: '', costPerUnit: 0 });
+const blankBatch = (): Batch => ({ id: '', batchNumber: '', quantity: 0, expiry: '', expireAt: '', manufactureDate: '', receivedDate: '', supplierId: '', costPerUnit: 0 });
 const blankPurchaseItem = (): PurchaseItem => ({ id: '', stockItemId: '', itemName: '', batchNumber: '', expiry: '', quantity: 0, unit: '', unitCost: 0, lineTotal: 0 });
 const blankSaleItem = (): SaleItem => ({ id: '', stockItemId: '', itemName: '', quantity: 0, unit: '', unitPrice: 0, discount: 0, lineTotal: 0 });
 
@@ -51,6 +51,7 @@ const blankMedForm = () => ({
   dosageForm: '', strength: '', dosageInfo: '', activeIngredients: '', storageCondition: '',
   prescriptionRequired: false, controlledDrug: false,
   batches: [] as Batch[], batch: '', expiry: '',
+  manufactureDate: '', expireAt: '',
 });
 
 const blankSupplierForm = () => ({
@@ -115,9 +116,9 @@ const availableOf = (m: MedStock) => {
 /** Earliest expiry that still has units behind it. */
 const expiryOf = (m: MedStock) => {
   const dated = (m.batches ?? [])
-    .filter((b) => b.expiry && numMin(b.quantity, 0) > 0)
-    .map((b) => b.expiry);
-  if (dated.length === 0) return m.expiry || '';
+    .filter((b) => (b.expireAt || b.expiry) && numMin(b.quantity, 0) > 0)
+    .map((b) => b.expireAt || b.expiry);
+  if (dated.length === 0) return m.expireAt || m.expiry || '';
   return dated.reduce((a, b) => (b < a ? b : a));
 };
 
@@ -365,8 +366,15 @@ export default function PharmacyPage() {
       storageCondition: m.storageCondition || '', prescriptionRequired: m.prescriptionRequired || false,
       controlledDrug: m.controlledDrug || false,
       // Give every batch a stable id so the form rows can key on it.
-      batches: (m.batches || []).map((b) => ({ ...b, id: b.id || newId('b') })),
+      batches: (m.batches || []).map((b) => ({
+        ...b,
+        id: b.id || newId('b'),
+        expireAt: b.expireAt || b.expiry || '',
+        manufactureDate: b.manufactureDate || '',
+      })),
       batch: m.batch || '', expiry: m.expiry || '',
+      manufactureDate: m.manufactureDate || '',
+      expireAt: m.expireAt || m.expiry || '',
     });
     setMedOpen(true);
   };
@@ -377,13 +385,19 @@ export default function PharmacyPage() {
 
     const batches = medForm.batches
       .filter((b) => b.batchNumber.trim() !== '' || numMin(b.quantity, 0) > 0)
-      .map((b) => ({
-        ...b,
-        id: b.id || newId('b'),
-        batchNumber: b.batchNumber.trim(),
-        quantity: numMin(b.quantity, 0),
-        costPerUnit: numMin(b.costPerUnit, 0),
-      }));
+      .map((b) => {
+        const bExp = b.expireAt || b.expiry || '';
+        return {
+          ...b,
+          id: b.id || newId('b'),
+          batchNumber: b.batchNumber.trim(),
+          quantity: numMin(b.quantity, 0),
+          costPerUnit: numMin(b.costPerUnit, 0),
+          expiry: bExp,
+          expireAt: bExp,
+          manufactureDate: b.manufactureDate || '',
+        };
+      });
     if (batches.some((b) => !b.batchNumber)) { setMedError('Every batch with a quantity needs a batch number.'); return; }
 
     // Stock is derived from the batch sum when batches exist, so the two can
@@ -391,6 +405,11 @@ export default function PharmacyPage() {
     const stock = batches.length > 0 ? batchSum(batches) : numMin(medForm.stock, 0);
     const ordered = fefo(batches).map((i) => batches[i]);
     const lead = ordered.find((b) => b.quantity > 0) ?? ordered[0];
+
+    const exp = batches.length > 0
+      ? (lead?.expireAt || lead?.expiry || medForm.expireAt || medForm.expiry || '')
+      : (medForm.expireAt || medForm.expiry || '');
+    const mfg = medForm.manufactureDate || '';
 
     const data = {
       name: medForm.name.trim(), category: medForm.category, stock,
@@ -403,7 +422,9 @@ export default function PharmacyPage() {
       prescriptionRequired: medForm.prescriptionRequired, controlledDrug: medForm.controlledDrug,
       batches,
       batch: batches.length > 0 ? lead?.batchNumber || '' : medForm.batch,
-      expiry: batches.length > 0 ? lead?.expiry || '' : medForm.expiry,
+      expiry: exp,
+      expireAt: exp,
+      manufactureDate: mfg,
       createdAt: editMed?.createdAt || todayISO,
     };
     try {
@@ -1000,7 +1021,8 @@ export default function PharmacyPage() {
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             {m.barcode && <span className="text-[10px] px-2 py-0.5 rounded bg-canvas/60 text-ink/60 flex items-center gap-0.5 font-mono"><Barcode className="w-2.5 h-2.5" /> {m.barcode}</span>}
                             {m.batch && <span className="text-[10px] text-ink/50">Batch: {m.batch}</span>}
-                            {expiryOf(m) && <span className="text-[10px] text-ink/50">Exp: {expiryOf(m)}</span>}
+                            {m.manufactureDate && <span className="text-[10px] text-ink/50">Mfg: {m.manufactureDate}</span>}
+                            {(m.expireAt || expiryOf(m)) && <span className="text-[10px] text-ink/50">Exp: {m.expireAt || expiryOf(m)}</span>}
                             {m.supplier && <span className="text-[10px] text-ink/50">{m.supplier}</span>}
                           </div>
                         </div>
@@ -1033,6 +1055,8 @@ export default function PharmacyPage() {
                           {m.dosageInfo && <div><span className="text-ink/40">Dosage:</span> <span className="text-ink/70 font-medium">{m.dosageInfo}</span></div>}
                           {m.activeIngredients && <div><span className="text-ink/40">Active:</span> <span className="text-ink/70 font-medium">{m.activeIngredients}</span></div>}
                           {m.storageCondition && <div><span className="text-ink/40">Storage:</span> <span className="text-ink/70 font-medium">{m.storageCondition}</span></div>}
+                          {m.manufactureDate && <div><span className="text-ink/40">Mfg Date:</span> <span className="text-ink/70 font-medium">{m.manufactureDate}</span></div>}
+                          {(m.expireAt || m.expiry) && <div><span className="text-ink/40">Expire at:</span> <span className="text-ink/70 font-medium">{m.expireAt || m.expiry}</span></div>}
                           {m.reorderLevel > 0 && <div><span className="text-ink/40">Reorder at:</span> <span className="text-ink/70 font-medium">{m.reorderLevel} {m.unit}</span></div>}
                           {m.reorderQty > 0 && <div><span className="text-ink/40">Reorder qty:</span> <span className="text-ink/70 font-medium">{m.reorderQty} {m.unit}</span></div>}
                           {m.qrCode && <div><span className="text-ink/40">QR:</span> <span className="text-ink/70 font-medium font-mono">{m.qrCode}</span></div>}
@@ -1043,13 +1067,14 @@ export default function PharmacyPage() {
                             <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide mb-2">Batch Tracking</div>
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs">
-                                <thead><tr className="text-ink/40 text-[10px]"><th className="text-left py-1">Batch No</th><th className="text-right">Qty</th><th className="text-left pl-3">Expiry</th><th className="text-left pl-3">Received</th><th className="text-right">Cost/unit</th></tr></thead>
+                                <thead><tr className="text-ink/40 text-[10px]"><th className="text-left py-1">Batch No</th><th className="text-right">Qty</th><th className="text-left pl-3">Mfg Date</th><th className="text-left pl-3">Expire at</th><th className="text-left pl-3">Received</th><th className="text-right">Cost/unit</th></tr></thead>
                                 <tbody>
                                   {m.batches.map((b, i) => (
                                     <tr key={b.id || `${b.batchNumber}-${i}`} className="border-t border-line/50">
                                       <td className="py-1 text-ink/70 font-medium">{b.batchNumber}</td>
                                       <td className="text-right text-ink/70">{numMin(b.quantity, 0)} {m.unit}</td>
-                                      <td className="text-left pl-3 text-ink/50">{b.expiry || '—'}</td>
+                                      <td className="text-left pl-3 text-ink/50">{b.manufactureDate || '—'}</td>
+                                      <td className="text-left pl-3 text-ink/50">{b.expireAt || b.expiry || '—'}</td>
                                       <td className="text-left pl-3 text-ink/50">{b.receivedDate || '—'}</td>
                                       <td className="text-right text-ink/70">{money(num(b.costPerUnit))}</td>
                                     </tr>
@@ -1112,7 +1137,26 @@ export default function PharmacyPage() {
                 <Field label="Storage"><Input value={medForm.storageCondition} onChange={(e) => setMed('storageCondition', e.target.value)} placeholder="Room temperature" /></Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Field label="Manufacture date">
+                  <DateInput
+                    value={medForm.manufactureDate}
+                    onChange={(e) => setMed('manufactureDate', e.target.value)}
+                    allowPast
+                    placeholder="YYYY-MM-DD"
+                  />
+                </Field>
+                <Field label="Expire at">
+                  <DateInput
+                    value={medForm.expireAt}
+                    onChange={(e) => {
+                      setMed('expireAt', e.target.value);
+                      setMed('expiry', e.target.value);
+                    }}
+                    allowPast
+                    placeholder="YYYY-MM-DD"
+                  />
+                </Field>
                 <Field label="Supplier">
                   <Select value={medForm.supplierId} onChange={(e) => {
                     const sup = db.suppliers.find((s) => s.id === e.target.value);
@@ -1137,11 +1181,12 @@ export default function PharmacyPage() {
                 <div className="space-y-2">
                   {medForm.batches.map((b) => (
                     <div key={b.id} className="flex items-center gap-2 flex-wrap rounded-lg border border-line p-2 bg-canvas/30">
-                      <Input className="w-32" value={b.batchNumber} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, batchNumber: e.target.value } : x) }))} placeholder="Batch No" />
-                      <NumberInput value={String(b.quantity)} min={0} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, quantity: numMin(e.target.value, 0) } : x) }))} className="w-28" placeholder="Qty" />
-                      <DateInput className="w-36" placeholder="Expiry" value={b.expiry} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, expiry: e.target.value } : x) }))} />
-                      <DateInput className="w-36" placeholder="Received" value={b.receivedDate} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, receivedDate: e.target.value } : x) }))} allowPast />
-                      <NumberInput value={String(b.costPerUnit)} min={0} step={0.01} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, costPerUnit: numMin(e.target.value, 0) } : x) }))} className="w-28" placeholder="Cost" />
+                      <Input className="w-28" value={b.batchNumber} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, batchNumber: e.target.value } : x) }))} placeholder="Batch No" />
+                      <NumberInput value={String(b.quantity)} min={0} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, quantity: numMin(e.target.value, 0) } : x) }))} className="w-24" placeholder="Qty" />
+                      <DateInput className="w-32" placeholder="Mfg Date" value={b.manufactureDate} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, manufactureDate: e.target.value } : x) }))} allowPast />
+                      <DateInput className="w-32" placeholder="Expire at" value={b.expireAt || b.expiry} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, expireAt: e.target.value, expiry: e.target.value } : x) }))} allowPast />
+                      <DateInput className="w-32" placeholder="Received" value={b.receivedDate} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, receivedDate: e.target.value } : x) }))} allowPast />
+                      <NumberInput value={String(b.costPerUnit)} min={0} step={0.01} onChange={(e) => setMedForm((f) => ({ ...f, batches: f.batches.map((x) => x.id === b.id ? { ...x, costPerUnit: numMin(e.target.value, 0) } : x) }))} className="w-24" placeholder="Cost" />
                       <button onClick={() => setMedForm((f) => ({ ...f, batches: f.batches.filter((x) => x.id !== b.id) }))} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors shrink-0" title="Remove batch"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}

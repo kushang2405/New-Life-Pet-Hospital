@@ -303,7 +303,7 @@ function drawDoctorSignature(doc: jsPDF, draft: ReportDraft, sigY = 720): void {
   doc.setTextColor(60, 60, 60);
   doc.setFont('helvetica', 'bold');
   doc.text('** This is an Electronically Approved Report. **', 38, sigY + 40);
-doc.text(`** Report Approved on : ${approvedDate}`, 38, sigY + 52);
+  doc.text(`** Report Approved on : ${approvedDate}`, 38, sigY + 52);
 }
 
 function drawBioTable(doc: jsPDF, draft: ReportDraft, rows: ReportAnalyte[], startY: number): void {
