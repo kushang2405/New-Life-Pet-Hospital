@@ -36,22 +36,41 @@ export function computeBI(db: DB, todays: any[]) {
 
 export function TodayAppointmentsWidget({ todays, petName, ownerName }: Props) {
   return (
-    <Card className="p-5">
-      <SectionTitle title="Today's appointments" action={<Link href="/appointments" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">View all <ArrowRight className="w-3 h-3" /></Link>} />
-      <div className="space-y-2">
-        {todays.slice(0, 6).map((a) => (
-          <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-canvas transition-colors">
-            <span className="text-sm font-semibold text-ink w-14 shrink-0">{a.time}</span>
-            <div className="w-px h-10 bg-line" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-ink truncate">{petName(a.petId)} · {a.service}</div>
-              <div className="text-[11px] text-ink/50 truncate">{ownerName(a.ownerId)} · {a.vet}</div>
+    <Card className="p-5 flex flex-col justify-between">
+      <div>
+        <SectionTitle
+          title="Today's appointments"
+          action={
+            <div className="flex items-center gap-2">
+              {todays.length > 0 && <span className="text-[11px] text-ink/40">{todays.length} total</span>}
+              <Link href="/appointments" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">
+                Manage <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
-            <Badge status={a.status} />
-          </div>
-        ))}
-        {todays.length === 0 && <div className="text-center py-6 text-sm text-ink/50">No appointments today.</div>}
+          }
+        />
+        <div className="space-y-2">
+          {todays.slice(0, 5).map((a) => (
+            <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-canvas transition-colors">
+              <span className="text-sm font-semibold text-ink w-14 shrink-0">{a.time}</span>
+              <div className="w-px h-10 bg-line" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink truncate">{petName(a.petId)} · {a.service}</div>
+                <div className="text-[11px] text-ink/50 truncate">{ownerName(a.ownerId)} · {a.vet}</div>
+              </div>
+              <Badge status={a.status} />
+            </div>
+          ))}
+          {todays.length === 0 && <div className="text-center py-6 text-sm text-ink/50">No appointments today.</div>}
+        </div>
       </div>
+      {todays.length > 5 && (
+        <div className="pt-3 border-t border-line/60 mt-3 text-center">
+          <Link href="/appointments" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
+            Manage all appointments ({todays.length} total · {todays.length - 5} more) <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </Card>
   );
 }
@@ -59,44 +78,82 @@ export function TodayAppointmentsWidget({ todays, petName, ownerName }: Props) {
 export function WaitingQueueWidget({ todays, petName }: { todays: any[]; petName: (id: string) => string }) {
   const waiting = todays.filter((a) => a.status === 'Scheduled');
   return (
-    <Card className="p-5">
-      <SectionTitle title="Waiting queue" action={<span className="text-[11px] text-ink/40">{waiting.length} waiting</span>} />
-      <div className="space-y-2">
-        {waiting.map((a, i) => (
-          <div key={a.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-canvas">
-            <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
-              {i + 1}
+    <Card className="p-5 flex flex-col justify-between">
+      <div>
+        <SectionTitle
+          title="Waiting queue"
+          action={
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-ink/40">{waiting.length} waiting</span>
+              <Link href="/appointments" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">
+                Manage <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-ink truncate">{petName(a.petId)} · {a.service}</div>
-              <div className="text-[11px] text-ink/50">{a.time} · {a.vet}</div>
+          }
+        />
+        <div className="space-y-2">
+          {waiting.slice(0, 5).map((a, i) => (
+            <div key={a.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-canvas">
+              <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
+                {i + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink truncate">{petName(a.petId)} · {a.service}</div>
+                <div className="text-[11px] text-ink/50">{a.time} · {a.vet}</div>
+              </div>
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
             </div>
-            <Clock className="w-3.5 h-3.5 text-amber-600" />
-          </div>
-        ))}
-        {waiting.length === 0 && <div className="text-center py-6 text-sm text-ink/50">Queue is empty.</div>}
+          ))}
+          {waiting.length === 0 && <div className="text-center py-6 text-sm text-ink/50">Queue is empty.</div>}
+        </div>
       </div>
+      {waiting.length > 5 && (
+        <div className="pt-3 border-t border-line/60 mt-3 text-center">
+          <Link href="/appointments" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
+            Manage waiting queue ({waiting.length} total · {waiting.length - 5} more) <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </Card>
   );
 }
 
 export function LowStockWidget({ lowStock }: { lowStock: any[] }) {
   return (
-    <Card className="p-5">
-      <SectionTitle title="Low-stock medicines" action={<Link href="/pharmacy" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">Manage <ArrowRight className="w-3 h-3" /></Link>} />
-      <div className="space-y-2">
-        {lowStock.map((m) => (
-          <div key={m.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-coral/20 bg-coral/5">
-            <Pill className="w-4 h-4 text-coral shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-ink truncate">{m.name}</div>
-              <div className="text-[11px] text-ink/50">{m.stock} {m.unit} left · reorder at {m.reorderLevel}</div>
+    <Card className="p-5 flex flex-col justify-between">
+      <div>
+        <SectionTitle
+          title="Low-stock medicines"
+          action={
+            <div className="flex items-center gap-2">
+              {lowStock.length > 0 && <span className="text-[11px] text-coral font-medium">{lowStock.length} items</span>}
+              <Link href="/pharmacy" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">
+                Manage <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
-            <span className="text-sm font-semibold text-coral">{m.stock}</span>
-          </div>
-        ))}
-        {lowStock.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All items well stocked.</div>}
+          }
+        />
+        <div className="space-y-2">
+          {lowStock.slice(0, 5).map((m) => (
+            <div key={m.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-coral/20 bg-coral/5">
+              <Pill className="w-4 h-4 text-coral shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink truncate">{m.name}</div>
+                <div className="text-[11px] text-ink/50">{m.stock} {m.unit} left · reorder at {m.reorderLevel}</div>
+              </div>
+              <span className="text-sm font-semibold text-coral">{m.stock}</span>
+            </div>
+          ))}
+          {lowStock.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All items well stocked.</div>}
+        </div>
       </div>
+      {lowStock.length > 5 && (
+        <div className="pt-3 border-t border-line/60 mt-3 text-center">
+          <Link href="/pharmacy" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
+            Manage low-stock medicines ({lowStock.length} total · {lowStock.length - 5} more) <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </Card>
   );
 }
@@ -134,25 +191,45 @@ export function RevenueSummaryWidget({ revenue, dailyIncome, monthlyIncome, outs
 
 export function OutstandingInvoicesWidget({ overdue, pending, ownerName }: { overdue: any[]; pending: any[]; ownerName: (id: string) => string }) {
   const { settings } = useSettings();
+  const allOutstanding = [...overdue, ...pending];
   return (
-    <Card className="p-5">
-      <SectionTitle title="Outstanding invoices" action={<Link href="/billing" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">Manage <ArrowRight className="w-3 h-3" /></Link>} />
-      <div className="space-y-2">
-        {[...overdue, ...pending].slice(0, 5).map((i) => (
-          <div key={i.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line">
-            <Receipt className="w-4 h-4 text-ink/40 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-ink truncate">{i.number} · {ownerName(i.ownerId)}</div>
-              <div className="text-[11px] text-ink/50">{i.date}</div>
+    <Card className="p-5 flex flex-col justify-between">
+      <div>
+        <SectionTitle
+          title="Outstanding invoices"
+          action={
+            <div className="flex items-center gap-2">
+              {allOutstanding.length > 0 && <span className="text-[11px] text-amber-700 font-medium">{allOutstanding.length} open</span>}
+              <Link href="/billing" className="text-xs text-plum font-medium flex items-center gap-1 hover:underline">
+                Manage <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
-            <div className="text-right">
-              <div className="text-sm font-semibold text-ink">{settings.currencySymbol}{invTotal(i).toFixed(0)}</div>
-              <Badge status={i.status} />
+          }
+        />
+        <div className="space-y-2">
+          {allOutstanding.slice(0, 5).map((i) => (
+            <div key={i.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line">
+              <Receipt className="w-4 h-4 text-ink/40 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-ink truncate">{i.number} · {ownerName(i.ownerId)}</div>
+                <div className="text-[11px] text-ink/50">{i.date}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-semibold text-ink">{settings.currencySymbol}{invTotal(i).toFixed(0)}</div>
+                <Badge status={i.status} />
+              </div>
             </div>
-          </div>
-        ))}
-        {overdue.length + pending.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All invoices settled.</div>}
+          ))}
+          {allOutstanding.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All invoices settled.</div>}
+        </div>
       </div>
+      {allOutstanding.length > 5 && (
+        <div className="pt-3 border-t border-line/60 mt-3 text-center">
+          <Link href="/billing" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
+            Manage outstanding invoices ({allOutstanding.length} total · {allOutstanding.length - 5} more) <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
     </Card>
   );
 }
