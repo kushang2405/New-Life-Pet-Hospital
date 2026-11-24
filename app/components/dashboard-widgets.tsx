@@ -64,13 +64,6 @@ export function TodayAppointmentsWidget({ todays, petName, ownerName }: Props) {
           {todays.length === 0 && <div className="text-center py-6 text-sm text-ink/50">No appointments today.</div>}
         </div>
       </div>
-      {todays.length > 5 && (
-        <div className="pt-3 border-t border-line/60 mt-3 text-center">
-          <Link href="/appointments" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
-            Manage all appointments ({todays.length} total · {todays.length - 5} more) <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
     </Card>
   );
 }
@@ -107,13 +100,6 @@ export function WaitingQueueWidget({ todays, petName }: { todays: any[]; petName
           {waiting.length === 0 && <div className="text-center py-6 text-sm text-ink/50">Queue is empty.</div>}
         </div>
       </div>
-      {waiting.length > 5 && (
-        <div className="pt-3 border-t border-line/60 mt-3 text-center">
-          <Link href="/appointments" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
-            Manage waiting queue ({waiting.length} total · {waiting.length - 5} more) <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
     </Card>
   );
 }
@@ -147,13 +133,6 @@ export function LowStockWidget({ lowStock }: { lowStock: any[] }) {
           {lowStock.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All items well stocked.</div>}
         </div>
       </div>
-      {lowStock.length > 5 && (
-        <div className="pt-3 border-t border-line/60 mt-3 text-center">
-          <Link href="/pharmacy" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
-            Manage low-stock medicines ({lowStock.length} total · {lowStock.length - 5} more) <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
     </Card>
   );
 }
@@ -223,13 +202,6 @@ export function OutstandingInvoicesWidget({ overdue, pending, ownerName }: { ove
           {allOutstanding.length === 0 && <div className="text-center py-6 text-sm text-ink/50">All invoices settled.</div>}
         </div>
       </div>
-      {allOutstanding.length > 5 && (
-        <div className="pt-3 border-t border-line/60 mt-3 text-center">
-          <Link href="/billing" className="inline-flex items-center gap-1.5 text-xs font-semibold text-plum hover:underline">
-            Manage outstanding invoices ({allOutstanding.length} total · {allOutstanding.length - 5} more) <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      )}
     </Card>
   );
 }
