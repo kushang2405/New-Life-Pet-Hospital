@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, X, Clock, TrendingDown, RotateCcw,
 } from 'lucide-react';
 import Shell from '../components/Shell';
+import { Pagination, paginate } from '../components/list-controls';
 import { Card, Button, EmptyState, Modal, Field, Input, SearchInput, Select, DateInput, NumberInput, Textarea, Checkbox, Badge, Tabs } from '../components/ui';
 import {
   useDB, MedStock, Supplier, Purchase, PurchaseItem, PharmacySale, SaleItem, Batch, StockAdjustment,
@@ -276,24 +277,29 @@ export default function PharmacyPage() {
   const [medForm, setMedForm] = useState(blankMedForm());
   const [medError, setMedError] = useState('');
   const [expandedMed, setExpandedMed] = useState<string | null>(null);
+  const [invPage, setInvPage] = useState(1);
 
   // Supplier state
   const [supOpen, setSupOpen] = useState(false);
   const [editSup, setEditSup] = useState<Supplier | null>(null);
   const [supForm, setSupForm] = useState(blankSupplierForm());
   const [supError, setSupError] = useState('');
+  const [supPage, setSupPage] = useState(1);
 
   // Purchase state
   const [purOpen, setPurOpen] = useState(false);
   const [editPur, setEditPur] = useState<Purchase | null>(null);
   const [purForm, setPurForm] = useState(blankPurchaseForm());
   const [purError, setPurError] = useState('');
+  const [purPage, setPurPage] = useState(1);
 
-  // Sale state
+  // Sale & Dispensing state
   const [saleOpen, setSaleOpen] = useState(false);
   const [editSale, setEditSale] = useState<PharmacySale | null>(null);
   const [saleForm, setSaleForm] = useState(blankSaleForm());
   const [saleError, setSaleError] = useState('');
+  const [dispPage, setDispPage] = useState(1);
+  const [salesPage, setSalesPage] = useState(1);
 
   // Adjust state
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -977,75 +983,150 @@ export default function PharmacyPage() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
-            <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, generic, supplier, batch, barcode…" className="flex-1" />
+            <SearchInput value={search} onChange={(e) => { setSearch(e.target.value); setInvPage(1); }} placeholder="Search by name, generic, supplier, batch, barcode…" className="flex-1" />
             <div className="flex items-center gap-1 p-1 rounded-lg bg-white border border-line overflow-x-auto">
               {['all', ...categories].map((c) => (
-                <button key={c} onClick={() => setFilter(c)} className={`px-3 h-8 rounded-md text-xs font-medium capitalize transition-colors whitespace-nowrap ${filter === c ? 'bg-lilac text-plum' : 'text-ink/60 hover:bg-canvas'}`}>{c}</button>
+                <button key={c} onClick={() => { setFilter(c); setInvPage(1); }} className={`px-3 h-8 rounded-md text-xs font-medium capitalize transition-colors whitespace-nowrap ${filter === c ? 'bg-lilac text-plum' : 'text-ink/60 hover:bg-canvas'}`}>{c}</button>
               ))}
             </div>
             <Button onClick={openNewMed}><Plus className="w-4 h-4" /> Add item</Button>
           </div>
 
-          {items.length === 0 ? (
-            <Card><EmptyState icon={Pill} title="No inventory items" hint="Add medicines, vaccines, supplements, and supplies to track stock levels." /></Card>
-          ) : (
-            <div className="space-y-2">
-              {items.map((m) => {
-                const onHand = availableOf(m);
-                const low = isLow(m);
-                const days = daysToExpiry(m);
-                const exp = days !== null && days < 0;
-                const expSoon = days !== null && days >= 0 && days <= 90;
-                const expanded = expandedMed === m.id;
-                const toggle = () => setExpandedMed(expanded ? null : m.id);
-                return (
-                  <Card key={m.id} className="group hover:ring-2 hover:ring-plum/20 transition-all">
-                    <div className="p-4 flex items-center justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer" onClick={toggle}>
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${low ? 'bg-coral/15' : 'bg-lilac'}`}>
-                          <Pill className={`w-5 h-5 ${low ? 'text-coral' : 'text-plum'}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-ink">{m.name}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/50">{m.category}</span>
-                            {m.prescriptionRequired && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Rx</span>}
-                            {m.controlledDrug && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral">Controlled</span>}
-                            {low && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Low stock</span>}
-                            {exp && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium">Expired</span>}
-                            {expSoon && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Expiring soon</span>}
+          {(() => {
+            const pagedInventory = paginate(items, invPage, 10);
+            if (items.length === 0) {
+              return <Card><EmptyState icon={Pill} title="No inventory items" hint="Add medicines, vaccines, supplements, and supplies to track stock levels." /></Card>;
+            }
+            return (
+              <div className="space-y-2">
+                {pagedInventory.rows.map((m) => {
+                  const onHand = availableOf(m);
+                  const low = isLow(m);
+                  const days = daysToExpiry(m);
+                  const exp = days !== null && days < 0;
+                  const expSoon = days !== null && days >= 0 && days <= 90;
+                  const expanded = expandedMed === m.id;
+                  const toggle = () => setExpandedMed(expanded ? null : m.id);
+                  return (
+                    <Card key={m.id} className="group hover:ring-2 hover:ring-plum/20 transition-all overflow-hidden">
+                      {/* Mobile View (< md) */}
+                      <div className="md:hidden p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2.5">
+                          <div className="flex items-start gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={toggle}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${low ? 'bg-coral/15' : 'bg-lilac'}`}>
+                              <Pill className={`w-4 h-4 ${low ? 'text-coral' : 'text-plum'}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-ink leading-tight">{m.name}</div>
+                              <div className="text-[11px] text-ink/50 mt-0.5 truncate">
+                                {m.genericName && `${m.genericName} · `}{m.manufacturer && `${m.manufacturer} · `}{m.strength || m.unit}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-ink/50 mt-0.5">
-                            {m.genericName && `${m.genericName} · `}{m.manufacturer && `${m.manufacturer} · `}{m.strength || m.unit}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            {m.barcode && <span className="text-[10px] px-2 py-0.5 rounded bg-canvas/60 text-ink/60 flex items-center gap-0.5 font-mono"><Barcode className="w-2.5 h-2.5" /> {m.barcode}</span>}
-                            {m.batch && <span className="text-[10px] text-ink/50">Batch: {m.batch}</span>}
-                            {m.manufactureDate && <span className="text-[10px] text-ink/50">Mfg: {m.manufactureDate}</span>}
-                            {(m.expireAt || expiryOf(m)) && <span className="text-[10px] text-ink/50">Exp: {m.expireAt || expiryOf(m)}</span>}
-                            {m.supplier && <span className="text-[10px] text-ink/50">{m.supplier}</span>}
-                          </div>
+                          <button onClick={toggle} className="w-7 h-7 rounded-lg bg-canvas text-ink/40 hover:text-ink flex items-center justify-center shrink-0 transition-colors" title={expanded ? 'Collapse' : 'Expand'}>
+                            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className={`text-lg font-bold ${low ? 'text-coral' : 'text-ink'}`}>{onHand} <span className="text-xs font-normal text-ink/50">{m.unit}</span></div>
-                          <div className="text-[11px] text-ink/50">{money(num(m.price))} / {m.unit}</div>
+
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60 font-medium">{m.category}</span>
+                          {m.prescriptionRequired && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Rx</span>}
+                          {m.controlledDrug && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium">Controlled</span>}
+                          {low && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Low stock</span>}
+                          {exp && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium">Expired</span>}
+                          {expSoon && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Expiring soon</span>}
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); toggle(); }} className="text-ink/30 hover:text-ink mt-1" title={expanded ? 'Collapse' : 'Expand'}>
-                          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50">
+                          <div>
+                            <span className="text-ink/40 text-[10px] block uppercase font-medium">Stock On Hand</span>
+                            <span className={`text-sm font-bold ${low ? 'text-coral' : 'text-ink'}`}>{onHand} <span className="text-xs font-normal text-ink/50">{m.unit}</span></span>
+                          </div>
+                          <div>
+                            <span className="text-ink/40 text-[10px] block uppercase font-medium">Unit Price</span>
+                            <span className="text-sm font-bold text-ink">{money(num(m.price))}</span>
+                            <span className="text-[10px] text-ink/50"> / {m.unit}</span>
+                          </div>
+                          {(m.batch || m.barcode) && (
+                            <div>
+                              <span className="text-ink/40 text-[10px] block uppercase font-medium">Batch / Code</span>
+                              <span className="text-ink/70 font-mono text-[11px] truncate block">{m.batch ? `Batch: ${m.batch}` : m.barcode}</span>
+                            </div>
+                          )}
+                          {(m.expireAt || expiryOf(m) || m.manufactureDate) && (
+                            <div>
+                              <span className="text-ink/40 text-[10px] block uppercase font-medium">Expiry / Mfg</span>
+                              <span className="text-ink/70 text-[11px] block">{m.expireAt || expiryOf(m) || m.manufactureDate || '—'}</span>
+                            </div>
+                          )}
+                          {m.supplier && (
+                            <div className="col-span-2">
+                              <span className="text-ink/40 text-[10px] block uppercase font-medium">Supplier</span>
+                              <span className="text-ink/70 text-[11px] block truncate">{m.supplier}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-line/60">
+                          <Button size="sm" variant="outline" onClick={() => openAdjust(m)} className="text-xs text-ink/70">
+                            <TrendingDown className="w-3.5 h-3.5 mr-1" /> Adjust
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => openEditMed(m)} className="text-xs text-ink/70">
+                            <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <button onClick={() => deleteMed(m)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 transition-opacity shrink-0">
-                        <button onClick={() => openAdjust(m)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Stock adjustment">
-                          <TrendingDown className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => openEditMed(m)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit">
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => deleteMed(m)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+
+                      {/* Desktop View (>= md) */}
+                      <div className="hidden md:flex p-4 items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer" onClick={toggle}>
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${low ? 'bg-coral/15' : 'bg-lilac'}`}>
+                            <Pill className={`w-5 h-5 ${low ? 'text-coral' : 'text-plum'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold text-ink">{m.name}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/50">{m.category}</span>
+                              {m.prescriptionRequired && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Rx</span>}
+                              {m.controlledDrug && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral">Controlled</span>}
+                              {low && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium flex items-center gap-0.5"><AlertTriangle className="w-2.5 h-2.5" /> Low stock</span>}
+                              {exp && <span className="text-[10px] px-2 py-0.5 rounded-full bg-coral/15 text-coral font-medium">Expired</span>}
+                              {expSoon && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Expiring soon</span>}
+                            </div>
+                            <div className="text-[11px] text-ink/50 mt-0.5">
+                              {m.genericName && `${m.genericName} · `}{m.manufacturer && `${m.manufacturer} · `}{m.strength || m.unit}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              {m.barcode && <span className="text-[10px] px-2 py-0.5 rounded bg-canvas/60 text-ink/60 flex items-center gap-0.5 font-mono"><Barcode className="w-2.5 h-2.5" /> {m.barcode}</span>}
+                              {m.batch && <span className="text-[10px] text-ink/50">Batch: {m.batch}</span>}
+                              {m.manufactureDate && <span className="text-[10px] text-ink/50">Mfg: {m.manufactureDate}</span>}
+                              {(m.expireAt || expiryOf(m)) && <span className="text-[10px] text-ink/50">Exp: {m.expireAt || expiryOf(m)}</span>}
+                              {m.supplier && <span className="text-[10px] text-ink/50">{m.supplier}</span>}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className={`text-lg font-bold ${low ? 'text-coral' : 'text-ink'}`}>{onHand} <span className="text-xs font-normal text-ink/50">{m.unit}</span></div>
+                            <div className="text-[11px] text-ink/50">{money(num(m.price))} / {m.unit}</div>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); toggle(); }} className="text-ink/30 hover:text-ink mt-1" title={expanded ? 'Collapse' : 'Expand'}>
+                            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1 transition-opacity shrink-0">
+                          <button onClick={() => openAdjust(m)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Stock adjustment">
+                            <TrendingDown className="w-5 h-5" />
+                          </button>
+                          <button onClick={() => openEditMed(m)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit">
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => deleteMed(m)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
                     {expanded && (
                       <div className="border-t border-line px-4 pb-4 pt-3 bg-canvas/30 space-y-3">
@@ -1092,8 +1173,10 @@ export default function PharmacyPage() {
                   </Card>
                 );
               })}
+              <Pagination page={pagedInventory.page} totalPages={pagedInventory.totalPages} total={pagedInventory.total} onPage={setInvPage} />
             </div>
-          )}
+          );
+        })()}
 
           {/* Add/Edit medicine modal */}
           <Modal open={medOpen} onClose={() => { setMedOpen(false); setEditMed(null); }} title={editMed ? 'Edit item' : 'Add inventory item'} wide>
@@ -1240,37 +1323,44 @@ export default function PharmacyPage() {
           <div className="flex justify-end mb-4">
             <Button onClick={openNewSup}><Plus className="w-4 h-4" /> Add supplier</Button>
           </div>
-          {db.suppliers.length === 0 ? (
-            <Card><EmptyState icon={Truck} title="No suppliers" hint="Add suppliers to track purchases and reorder stock." /></Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {db.suppliers.map((s) => (
-                <Card key={s.id} className="group p-4 hover:ring-2 hover:ring-plum/20 transition-all">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
-                        <Truck className="w-5 h-5 text-sky-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-ink">{s.name}</div>
-                        <div className="text-[11px] text-ink/50">{s.code} · {s.category}</div>
-                        {s.contactPerson && <div className="text-[11px] text-ink/50 mt-1">{s.contactPerson} · {s.phone}</div>}
-                        {s.email && <div className="text-[11px] text-ink/50">{s.email}</div>}
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          {s.paymentTerms && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.paymentTerms}</span>}
-                          {s.leadTimeDays > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.leadTimeDays}d lead time</span>}
+          {(() => {
+            const pagedSuppliers = paginate(db.suppliers, supPage, 10);
+            if (db.suppliers.length === 0) {
+              return <Card><EmptyState icon={Truck} title="No suppliers" hint="Add suppliers to track purchases and reorder stock." /></Card>;
+            }
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {pagedSuppliers.rows.map((s) => (
+                    <Card key={s.id} className="group p-4 hover:ring-2 hover:ring-plum/20 transition-all">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
+                            <Truck className="w-5 h-5 text-sky-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-ink">{s.name}</div>
+                            <div className="text-[11px] text-ink/50">{s.code} · {s.category}</div>
+                            {s.contactPerson && <div className="text-[11px] text-ink/50 mt-1">{s.contactPerson} · {s.phone}</div>}
+                            {s.email && <div className="text-[11px] text-ink/50">{s.email}</div>}
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                              {s.paymentTerms && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.paymentTerms}</span>}
+                              {s.leadTimeDays > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.leadTimeDays}d lead time</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 transition-opacity shrink-0">
+                          <button onClick={() => openEditSup(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => deleteSup(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 transition-opacity shrink-0">
-                      <button onClick={() => openEditSup(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-5 h-5" /></button>
-                      <button onClick={() => deleteSup(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+                    </Card>
+                  ))}
+                </div>
+                <Pagination page={pagedSuppliers.page} totalPages={pagedSuppliers.totalPages} total={pagedSuppliers.total} onPage={setSupPage} />
+              </div>
+            );
+          })()}
 
           <Modal open={supOpen} onClose={() => { setSupOpen(false); setEditSup(null); }} title={editSup ? 'Edit supplier' : 'Add supplier'}>
             <div className="space-y-3">
@@ -1310,38 +1400,85 @@ export default function PharmacyPage() {
           <div className="flex justify-end mb-4">
             <Button onClick={openNewPur}><Plus className="w-4 h-4" /> New purchase order</Button>
           </div>
-          {db.purchases.length === 0 ? (
-            <Card><EmptyState icon={ShoppingCart} title="No purchase orders" hint="Create purchase orders to restock inventory from suppliers." /></Card>
-          ) : (
-            <div className="space-y-2">
-              {db.purchases.map((p) => (
-                <Card key={p.id} className="group hover:ring-2 hover:ring-plum/20 transition-all">
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
-                        <ShoppingCart className="w-5 h-5 text-sky-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-ink">{p.poNumber}</span>
-                          <Badge status={p.status} />
+          {(() => {
+            const pagedPurchases = paginate(db.purchases, purPage, 10);
+            if (db.purchases.length === 0) {
+              return <Card><EmptyState icon={ShoppingCart} title="No purchase orders" hint="Create purchase orders to restock inventory from suppliers." /></Card>;
+            }
+            return (
+              <div className="space-y-2">
+                {pagedPurchases.rows.map((p) => (
+                  <Card key={p.id} className="group hover:ring-2 hover:ring-plum/20 transition-all overflow-hidden">
+                    {/* Mobile View (< md) */}
+                    <div className="md:hidden p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
+                            <ShoppingCart className="w-4 h-4 text-sky-600" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-sm text-ink font-mono">{p.poNumber}</div>
+                            <div className="text-[11px] text-ink/50">{p.date}</div>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-ink/50 mt-0.5">{p.supplierName} · {p.date} · {p.items.length} item{p.items.length !== 1 ? 's' : ''}</div>
-                        {p.receivedDate && <div className="text-[11px] text-plum">Received: {p.receivedDate}</div>}
+                        <Badge status={p.status} />
+                      </div>
+
+                      <div className="text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50 space-y-1">
+                        <div>
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Supplier</span>
+                          <span className="font-semibold text-ink text-xs">{p.supplierName || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-ink/60 pt-0.5">
+                          <span>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>
+                          {p.receivedDate && <span className="text-plum text-[11px] font-medium">Received: {p.receivedDate}</span>}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                        <span className="text-[10px] text-ink/50 uppercase font-medium">Total</span>
+                        <span className="text-base font-bold text-ink">{money(num(p.total))}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-line/60">
+                        <Button size="sm" variant="outline" onClick={() => openEditPur(p)} className="text-xs text-ink/70">
+                          <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        <button onClick={() => deletePur(p)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-lg font-bold text-ink">{money(num(p.total))}</div>
+
+                    {/* Desktop View (>= md) */}
+                    <div className="hidden md:flex p-4 items-center justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
+                          <ShoppingCart className="w-5 h-5 text-sky-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-ink">{p.poNumber}</span>
+                            <Badge status={p.status} />
+                          </div>
+                          <div className="text-[11px] text-ink/50 mt-0.5">{p.supplierName} · {p.date} · {p.items.length} item{p.items.length !== 1 ? 's' : ''}</div>
+                          {p.receivedDate && <div className="text-[11px] text-plum">Received: {p.receivedDate}</div>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-lg font-bold text-ink">{money(num(p.total))}</div>
+                      </div>
+                      <div className="flex items-center gap-1 transition-opacity shrink-0">
+                        <button onClick={() => openEditPur(p)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => deletePur(p)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 transition-opacity shrink-0">
-                      <button onClick={() => openEditPur(p)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-5 h-5" /></button>
-                      <button onClick={() => deletePur(p)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </Card>
+                ))}
+                <Pagination page={pagedPurchases.page} totalPages={pagedPurchases.totalPages} total={pagedPurchases.total} onPage={setPurPage} />
+              </div>
+            );
+          })()}
 
           <Modal open={purOpen} onClose={() => { setPurOpen(false); setEditPur(null); }} title={editPur ? `Edit ${editPur.poNumber}` : 'New purchase order'} wide>
             <div className="space-y-3">
@@ -1416,46 +1553,104 @@ export default function PharmacyPage() {
               </div>
             </div>
           </Card>
-          {db.pharmacySales.length === 0 ? (
-            <Card><EmptyState icon={HandHeart} title="No dispensing records" hint="Dispense medicines to patients and walk-in customers." /></Card>
-          ) : (
-            <div className="space-y-2">
-              {db.pharmacySales.map((s) => (
-                <Card key={s.id} className="group hover:ring-2 hover:ring-plum/20 transition-all">
-                  <div className="p-4 flex items-center justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.status === 'Refunded' ? 'bg-canvas' : 'bg-lilac'}`}>
-                        <Receipt className={`w-5 h-5 ${s.status === 'Refunded' ? 'text-ink/40' : 'text-plum'}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-semibold text-ink">{s.saleNumber}</span>
-                          <Badge status={s.status} />
-                          {s.paymentMethod && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.paymentMethod}</span>}
+          {(() => {
+            const pagedDispensing = paginate(db.pharmacySales, dispPage, 10);
+            if (db.pharmacySales.length === 0) {
+              return <Card><EmptyState icon={HandHeart} title="No dispensing records" hint="Dispense medicines to patients and walk-in customers." /></Card>;
+            }
+            return (
+              <div className="space-y-2">
+                {pagedDispensing.rows.map((s) => (
+                  <Card key={s.id} className="group hover:ring-2 hover:ring-plum/20 transition-all overflow-hidden">
+                    {/* Mobile View (< md) */}
+                    <div className="md:hidden p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${s.status === 'Refunded' ? 'bg-canvas' : 'bg-lilac'}`}>
+                            <Receipt className={`w-4 h-4 ${s.status === 'Refunded' ? 'text-ink/40' : 'text-plum'}`} />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-sm text-ink font-mono">{s.saleNumber}</div>
+                            <div className="text-[11px] text-ink/50">{s.date}</div>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-ink/50 mt-0.5">{s.date} · {s.customerName}{s.petName && ` (${s.petName})`}</div>
-                        <div className="text-[11px] text-ink/50">{s.items.length} item{s.items.length !== 1 ? 's' : ''}: {s.items.map((i) => `${i.itemName} x${i.quantity}`).join(', ')}</div>
-                        {s.dispensedBy && <div className="text-[11px] text-ink/40 mt-0.5">Dispensed by {s.dispensedBy}</div>}
+                        <Badge status={s.status} />
+                      </div>
+
+                      <div className="text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-ink/40 text-[10px] block uppercase font-medium">Customer</span>
+                            <span className="font-semibold text-ink text-xs">{s.customerName || 'Walk-in'}{s.petName ? ` (${s.petName})` : ''}</span>
+                          </div>
+                          {s.paymentMethod && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60 font-medium">{s.paymentMethod}</span>}
+                        </div>
+                        <div className="text-[11px] text-ink/60 pt-0.5">
+                          {s.items.length} item{s.items.length !== 1 ? 's' : ''}: {s.items.map((i) => `${i.itemName} x${i.quantity}`).join(', ')}
+                        </div>
+                        {s.dispensedBy && <div className="text-[10px] text-ink/40">Dispensed by {s.dispensedBy}</div>}
+                      </div>
+
+                      <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-ink/50 uppercase font-medium">Total</span>
+                          {s.discount > 0 && <span className="text-[10px] text-plum font-medium">(-{money(num(s.discount))})</span>}
+                        </div>
+                        <span className="text-base font-bold text-ink">{money(num(s.total))}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-line/60">
+                        {s.status === 'Completed' && (
+                          <Button size="sm" variant="soft" onClick={() => refundSale(s)} className="text-xs text-amber-700 bg-amber-50 hover:bg-amber-100">
+                            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Refund
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openEditSale(s)} className="text-xs text-ink/70">
+                          <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                        </Button>
+                        <button onClick={() => deleteSale(s)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-lg font-bold text-ink">{money(num(s.total))}</div>
-                      {s.discount > 0 && <div className="text-[11px] text-plum">-{money(num(s.discount))} discount</div>}
+
+                    {/* Desktop View (>= md) */}
+                    <div className="hidden md:flex p-4 items-center justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.status === 'Refunded' ? 'bg-canvas' : 'bg-lilac'}`}>
+                          <Receipt className={`w-5 h-5 ${s.status === 'Refunded' ? 'text-ink/40' : 'text-plum'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-ink">{s.saleNumber}</span>
+                            <Badge status={s.status} />
+                            {s.paymentMethod && <span className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-ink/60">{s.paymentMethod}</span>}
+                          </div>
+                          <div className="text-[11px] text-ink/50 mt-0.5">{s.date} · {s.customerName}{s.petName && ` (${s.petName})`}</div>
+                          <div className="text-[11px] text-ink/50">{s.items.length} item{s.items.length !== 1 ? 's' : ''}: {s.items.map((i) => `${i.itemName} x${i.quantity}`).join(', ')}</div>
+                          {s.dispensedBy && <div className="text-[11px] text-ink/40 mt-0.5">Dispensed by {s.dispensedBy}</div>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-lg font-bold text-ink">{money(num(s.total))}</div>
+                        {s.discount > 0 && <div className="text-[11px] text-plum">-{money(num(s.discount))} discount</div>}
+                      </div>
+                      <div className="flex items-center gap-1 transition-opacity shrink-0">
+                        {s.status === 'Completed' && (
+                          <button onClick={() => refundSale(s)} className="w-7 h-7 rounded-lg hover:bg-amber-100 text-ink/40 hover:text-amber-600 flex items-center justify-center transition-colors" title="Return / refund">
+                            <RotateCcw className="w-5 h-5" />
+                          </button>
+                        )}
+                        <button onClick={() => openEditSale(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => deleteSale(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 transition-opacity shrink-0">
-                      {s.status === 'Completed' && (
-                        <button onClick={() => refundSale(s)} className="w-7 h-7 rounded-lg hover:bg-amber-100 text-ink/40 hover:text-amber-600 flex items-center justify-center transition-colors" title="Return / refund">
-                          <RotateCcw className="w-5 h-5" />
-                        </button>
-                      )}
-                      <button onClick={() => openEditSale(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteSale(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </Card>
+                ))}
+                <Pagination page={pagedDispensing.page} totalPages={pagedDispensing.totalPages} total={pagedDispensing.total} onPage={setDispPage} />
+              </div>
+            );
+          })()}
 
           <Modal open={saleOpen} onClose={() => { setSaleOpen(false); setEditSale(null); }} title={editSale ? `Edit ${editSale.saleNumber}` : 'New dispensing / sale'} wide>
             <div className="space-y-3">
@@ -1536,104 +1731,111 @@ export default function PharmacyPage() {
             <Card className="p-4"><div className="text-[11px] text-ink/50 uppercase tracking-wide">Total sales</div><div className="text-2xl font-bold text-ink mt-1">{db.pharmacySales.filter((s) => s.status === 'Completed').length}</div></Card>
             <Card className="p-4"><div className="text-[11px] text-ink/50 uppercase tracking-wide">Refunds</div><div className="text-2xl font-bold text-coral mt-1">{db.pharmacySales.filter((s) => s.status === 'Refunded').length}</div></Card>
           </div>
-          {db.pharmacySales.length === 0 ? (
-            <Card><EmptyState icon={Receipt} title="No pharmacy sales" hint="Completed sales and dispensing records will appear here." /></Card>
-          ) : (
-            <Card className="overflow-hidden">
-              {/* Mobile Cards View (< md) */}
-              <div className="md:hidden divide-y divide-line">
-                {db.pharmacySales.map((s) => (
-                  <div key={s.id} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold text-sm text-ink font-mono">{s.saleNumber}</div>
-                        <div className="text-xs text-ink/50 mt-0.5">{s.date}</div>
-                      </div>
-                      <Badge status={s.status} />
-                    </div>
-
-                    <div className="text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50">
-                      <span className="text-ink/40 text-[10px] block uppercase font-medium">Customer</span>
-                      <span className="font-semibold text-ink text-xs">{s.customerName}</span>
-                      {s.petName && <span className="text-ink/50 ml-1">({s.petName})</span>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
-                        <span className="text-ink/40 text-[10px] block uppercase font-medium">Items</span>
-                        <span className="font-medium text-ink/80">{s.items.length} items</span>
-                      </div>
-                      <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
-                        <span className="text-ink/40 text-[10px] block uppercase font-medium">Payment</span>
-                        <span className="font-medium text-ink/80">{s.paymentMethod || '—'}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
-                      <span className="text-[10px] text-ink/50 uppercase font-medium">Total</span>
-                      <span className="text-base font-bold text-ink">{money(num(s.total))}</span>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-1.5 pt-1">
-                      {s.status === 'Completed' && (
-                        <Button size="sm" variant="soft" onClick={() => refundSale(s)} className="text-xs text-amber-700 bg-amber-50 hover:bg-amber-100">
-                          <RotateCcw className="w-3.5 h-3.5 mr-1" /> Refund
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => openEditSale(s)} className="text-xs text-ink/70">
-                        <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                      <button onClick={() => deleteSale(s)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop Table View (>= md) */}
-              <div className="overflow-x-auto hidden md:block">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] text-ink/50 uppercase tracking-wide border-b border-line">
-                      <th className="px-4 py-3 font-medium">Sale #</th>
-                      <th className="px-4 py-3 font-medium">Date</th>
-                      <th className="px-4 py-3 font-medium">Customer</th>
-                      <th className="px-4 py-3 font-medium text-center">Items</th>
-                      <th className="px-4 py-3 font-medium">Payment</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium text-right">Total</th>
-                      <th className="px-4 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {db.pharmacySales.map((s) => (
-                      <tr key={s.id} className="hover:bg-canvas/60 group">
-                        <td className="px-4 py-3 font-medium text-ink font-mono text-xs">{s.saleNumber}</td>
-                        <td className="px-4 py-3 text-ink/60 text-xs">{s.date}</td>
-                        <td className="px-4 py-3 text-ink/70">{s.customerName}{s.petName && <span className="text-ink/40"> ({s.petName})</span>}</td>
-                        <td className="px-4 py-3 text-center text-ink/60">{s.items.length}</td>
-                        <td className="px-4 py-3 text-ink/60 text-xs">{s.paymentMethod || '—'}</td>
-                        <td className="px-4 py-3"><Badge status={s.status} /></td>
-                        <td className="px-4 py-3 text-right font-medium text-ink">{money(num(s.total))}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 transition-opacity justify-end">
-                            {s.status === 'Completed' && (
-                              <button onClick={() => refundSale(s)} className="w-7 h-7 rounded-lg hover:bg-amber-100 text-ink/40 hover:text-amber-600 flex items-center justify-center transition-colors" title="Return / refund">
-                                <RotateCcw className="w-5 h-5" />
-                              </button>
-                            )}
-                            <button onClick={() => openEditSale(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => deleteSale(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+          {(() => {
+            const pagedSales = paginate(db.pharmacySales, salesPage, 10);
+            if (db.pharmacySales.length === 0) {
+              return <Card><EmptyState icon={Receipt} title="No pharmacy sales" hint="Completed sales and dispensing records will appear here." /></Card>;
+            }
+            return (
+              <div className="space-y-4">
+                <Card className="overflow-hidden">
+                  {/* Mobile Cards View (< md) */}
+                  <div className="md:hidden divide-y divide-line">
+                    {pagedSales.rows.map((s) => (
+                      <div key={s.id} className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-semibold text-sm text-ink font-mono">{s.saleNumber}</div>
+                            <div className="text-xs text-ink/50 mt-0.5">{s.date}</div>
                           </div>
-                        </td>
-                      </tr>
+                          <Badge status={s.status} />
+                        </div>
+
+                        <div className="text-xs bg-canvas/40 p-2.5 rounded-lg border border-line/50">
+                          <span className="text-ink/40 text-[10px] block uppercase font-medium">Customer</span>
+                          <span className="font-semibold text-ink text-xs">{s.customerName}</span>
+                          {s.petName && <span className="text-ink/50 ml-1">({s.petName})</span>}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
+                            <span className="text-ink/40 text-[10px] block uppercase font-medium">Items</span>
+                            <span className="font-medium text-ink/80">{s.items.length} items</span>
+                          </div>
+                          <div className="bg-canvas/40 p-2 rounded-lg border border-line/50">
+                            <span className="text-ink/40 text-[10px] block uppercase font-medium">Payment</span>
+                            <span className="font-medium text-ink/80">{s.paymentMethod || '—'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-canvas/70 border border-line/60 text-xs">
+                          <span className="text-[10px] text-ink/50 uppercase font-medium">Total</span>
+                          <span className="text-base font-bold text-ink">{money(num(s.total))}</span>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-1.5 pt-1">
+                          {s.status === 'Completed' && (
+                            <Button size="sm" variant="soft" onClick={() => refundSale(s)} className="text-xs text-amber-700 bg-amber-50 hover:bg-amber-100">
+                              <RotateCcw className="w-3.5 h-3.5 mr-1" /> Refund
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => openEditSale(s)} className="text-xs text-ink/70">
+                            <Edit2 className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <button onClick={() => deleteSale(s)} className="w-8 h-8 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="overflow-x-auto hidden md:block">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-[11px] text-ink/50 uppercase tracking-wide border-b border-line">
+                          <th className="px-4 py-3 font-medium">Sale #</th>
+                          <th className="px-4 py-3 font-medium">Date</th>
+                          <th className="px-4 py-3 font-medium">Customer</th>
+                          <th className="px-4 py-3 font-medium text-center">Items</th>
+                          <th className="px-4 py-3 font-medium">Payment</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium text-right">Total</th>
+                          <th className="px-4 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line">
+                        {pagedSales.rows.map((s) => (
+                          <tr key={s.id} className="hover:bg-canvas/60 group">
+                            <td className="px-4 py-3 font-medium text-ink font-mono text-xs">{s.saleNumber}</td>
+                            <td className="px-4 py-3 text-ink/60 text-xs">{s.date}</td>
+                            <td className="px-4 py-3 text-ink/70">{s.customerName}{s.petName && <span className="text-ink/40"> ({s.petName})</span>}</td>
+                            <td className="px-4 py-3 text-center text-ink/60">{s.items.length}</td>
+                            <td className="px-4 py-3 text-ink/60 text-xs">{s.paymentMethod || '—'}</td>
+                            <td className="px-4 py-3"><Badge status={s.status} /></td>
+                            <td className="px-4 py-3 text-right font-medium text-ink">{money(num(s.total))}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1 transition-opacity justify-end">
+                                {s.status === 'Completed' && (
+                                  <button onClick={() => refundSale(s)} className="w-7 h-7 rounded-lg hover:bg-amber-100 text-ink/40 hover:text-amber-600 flex items-center justify-center transition-colors" title="Return / refund">
+                                    <RotateCcw className="w-5 h-5" />
+                                  </button>
+                                )}
+                                <button onClick={() => openEditSale(s)} className="w-7 h-7 rounded-lg hover:bg-canvas text-ink/40 hover:text-ink flex items-center justify-center transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => deleteSale(s)} className="w-7 h-7 rounded-lg hover:bg-coral/10 text-ink/40 hover:text-coral flex items-center justify-center transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+                <Pagination page={pagedSales.page} totalPages={pagedSales.totalPages} total={pagedSales.total} onPage={setSalesPage} />
               </div>
-            </Card>
-          )}
+            );
+          })()}
         </>
       )}
     </Shell>
