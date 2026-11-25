@@ -206,7 +206,7 @@ function MedicineSearchSelector({
    make React re-use row 3's inputs (the old `key={index}` bug). */
 type DraftItem = InvoiceItem & { rowKey: string };
 
-function blankItem(category: InvoiceItem['category'] = 'Consultation'): DraftItem {
+function blankItem(category: InvoiceItem['category'] = 'Medication'): DraftItem {
   return {
     description: '', qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
     category, reference: '', referenceId: '', cost: 0, notes: '',
@@ -375,7 +375,7 @@ export default function BillingPage() {
       notes: '', terms: docType === 'Estimate' ? 'Estimate valid for 30 days' : 'Payment due within 14 days',
       discount: '0', discountType: 'Fixed', taxRate: '0',
     });
-    setItems([blankItem('Consultation')]);
+    setItems([blankItem('Medication')]);
     setInvModal(true);
   };
 
@@ -388,14 +388,15 @@ export default function BillingPage() {
       discount: String(num(inv.discount)), discountType: inv.discountType,
       taxRate: '0',
     });
-    setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem('Consultation')]);
+    setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem('Medication')]);
     setInvModal(true);
   };
 
   const updateItem = (rowKey: string, patch: Partial<InvoiceItem>) =>
     setItems((its) => its.map((it) => (it.rowKey === rowKey ? { ...it, ...patch } : it)));
-  const addItem = () => setItems((its) => [...its, blankItem('Consultation')]);
+  const addItem = () => setItems((its) => [...its, blankItem('Medication')]);
   const addMedicineItem = () => setItems((its) => [...its, blankItem('Medication')]);
+  const addCustomItem = () => setItems((its) => [...its, blankItem('Consultation')]);
   const removeItem = (rowKey: string) => setItems((its) => its.filter((it) => it.rowKey !== rowKey));
 
   const editingInvoice = editingId ? invoices.find((i) => i.id === editingId) : undefined;
@@ -1181,7 +1182,7 @@ export default function BillingPage() {
                 <Button variant="outline" size="sm" onClick={addMedicineItem}>
                   <Pill className="w-3.5 h-3.5 mr-1" /> Add medicine
                 </Button>
-                <Button variant="outline" size="sm" onClick={addItem}>
+                <Button variant="ghost" size="sm" onClick={addCustomItem} className="text-ink/60 hover:text-ink">
                   <Plus className="w-3.5 h-3.5 mr-1" /> Add custom item
                 </Button>
               </div>
