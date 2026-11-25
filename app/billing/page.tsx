@@ -1,19 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Receipt, Plus, TrendingUp, DollarSign, AlertCircle, Eye, CheckCircle2, RotateCcw,
   Trash2, FileText, Wallet, ArrowDownRight, ArrowUpRight, PiggyBank, Calendar,
-  Tag, Building2, Percent, X,
+  Tag, Building2, Percent, X, Pill, Search,
 } from 'lucide-react';
 import Shell from '../components/Shell';
 import { Card, Badge, Button, StatCard, EmptyState, Modal, Field, Input, Select, NumberInput, DateInput, Textarea } from '../components/ui';
-import { useDB, type Invoice, type Expense, type InvoiceItem, type Payment, newId } from '../lib/store';
+import { useDB, type Invoice, type Expense, type InvoiceItem, type Payment, type MedStock, type Batch, type PharmacySale, type SaleItem, newId } from '../lib/store';
 import {
   invoiceTotals, countsAsRevenue, statusForBalance, nextDocNumber, confirmDelete,
   localDateISO, num, numMin, round2, isZeroMoney,
 } from '../lib/helpers';
-import { useSettings, formatMoney, formatDate, taxRateOf, prefixFor } from '../lib/settings';
+import { useSettings, formatMoney, formatDate, prefixFor } from '../lib/settings';
 
 type Tab = 'invoices' | 'accounting';
 type DocFilter = 'all' | 'Invoice' | 'Estimate' | 'Credit Note' | 'Receipt' | 'Refund';
@@ -23,20 +23,199 @@ const ITEM_CATEGORIES: InvoiceItem['category'][] = ['Consultation', 'Surgery', '
 const PAYMENT_METHODS: Payment['method'][] = ['Cash', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon'];
 const EXPENSE_CATEGORIES: Expense['category'][] = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Equipment', 'Maintenance', 'Marketing', 'Insurance', 'Professional fees', 'Travel', 'Bank charges', 'Taxes', 'Other'];
 
+/* ════════════════════════════════════════════════════════════════════
+   Stock Movement Engine (FEFO deduction & reversal)
+   ════════════════════════════════════════════════════════════════════ */
+type StockPatch = { stock: number; batches?: Batch[] };
+
+const batchSum = (batches: Batch[]) => batches.reduce((s, b) => s + numMin(b.quantity, 0), 0);
+
+const availableOf = (m: MedStock) => {
+  const batches = m.batches ?? [];
+  return batches.length > 0 ? batchSum(batches) : numMin(m.stock, 0);
+};
+
+const workingBatches = (m: MedStock) =>
+  (m.batches ?? []).map((b) => ({ ...b, quantity: numMin(b.quantity, 0) }));
+
+const FAR_FUTURE = '9999-12-31';
+
+const fefo = (batches: Batch[]) =>
+  batches
+    .map((_, i) => i)
+    .sort((a, b) => {
+      const ea = batches[a].expiry || batches[a].expireAt || FAR_FUTURE;
+      const eb = batches[b].expiry || batches[b].expireAt || FAR_FUTURE;
+      return ea === eb ? a - b : ea < eb ? -1 : 1;
+    });
+
+function deduct(batches: Batch[], qty: number) {
+  let left = qty;
+  for (const i of fefo(batches)) {
+    if (left <= 0) break;
+    const take = Math.min(batches[i].quantity, left);
+    batches[i].quantity = round2(batches[i].quantity - take);
+    left = round2(left - take);
+  }
+}
+
+function movementPatch(m: MedStock, delta: number): StockPatch {
+  const batches = workingBatches(m);
+  if (batches.length === 0) return { stock: Math.max(0, round2(numMin(m.stock, 0) + delta)) };
+  if (delta < 0) deduct(batches, -delta);
+  else if (delta > 0) batches[fefo(batches)[0]].quantity = round2(batches[fefo(batches)[0]].quantity + delta);
+  return { stock: batchSum(batches), batches };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Searchable Medicine Selector Component
+   ════════════════════════════════════════════════════════════════════ */
+function MedicineSearchSelector({
+  medStock,
+  selectedId,
+  currentName,
+  currencySymbol,
+  onSelect,
+}: {
+  medStock: MedStock[];
+  selectedId?: string;
+  currentName?: string;
+  currencySymbol: string;
+  onSelect: (med: MedStock) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const selectedMed = useMemo(() => {
+    if (selectedId) return medStock.find((m) => m.id === selectedId);
+    if (currentName) return medStock.find((m) => m.name.toLowerCase() === currentName.toLowerCase());
+    return null;
+  }, [medStock, selectedId, currentName]);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return medStock.slice(0, 30);
+    return medStock.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        (m.genericName && m.genericName.toLowerCase().includes(q)) ||
+        (m.barcode && m.barcode.toLowerCase().includes(q)) ||
+        (m.category && m.category.toLowerCase().includes(q))
+    ).slice(0, 30);
+  }, [medStock, query]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Medicine from inventory</label>
+      <div className="relative">
+        <Search className="w-3.5 h-3.5 text-ink/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={open ? query : (selectedMed ? selectedMed.name : (currentName || query))}
+          placeholder="Search medicine by name or generic…"
+          onFocus={() => {
+            setOpen(true);
+            setQuery('');
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          className="w-full h-9 pl-8 pr-7 text-xs rounded-lg border border-line bg-white text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-plum/20 focus:border-plum"
+        />
+        {open && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-ink/30 hover:text-ink"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-xl border border-line bg-white shadow-xl p-1.5 space-y-1">
+          {filtered.length === 0 ? (
+            <div className="p-3 text-center text-xs text-ink/40">No medicines found matching "{query}"</div>
+          ) : (
+            filtered.map((m) => {
+              const avail = availableOf(m);
+              const isSelected = m.id === selectedId;
+              const outOfStock = avail <= 0;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={outOfStock}
+                  onClick={() => {
+                    onSelect(m);
+                    setOpen(false);
+                    setQuery('');
+                  }}
+                  className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between text-xs transition-colors ${
+                    isSelected
+                      ? 'bg-lilac text-plum font-medium'
+                      : outOfStock
+                      ? 'opacity-40 cursor-not-allowed bg-canvas/30'
+                      : 'hover:bg-canvas text-ink cursor-pointer'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1 pr-2">
+                    <div className="font-semibold truncate">{m.name}</div>
+                    <div className="text-[10px] text-ink/50 truncate">
+                      {m.genericName && `${m.genericName} · `}
+                      {currencySymbol}{num(m.price).toFixed(2)} / {m.unit}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        outOfStock
+                          ? 'bg-coral/15 text-coral'
+                          : avail <= 5
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-50 text-emerald-700'
+                      }`}
+                    >
+                      {avail > 0 ? `${avail} ${m.unit}` : 'Out of stock'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Line items in the editor carry a client-only key so removing row 2 does not
    make React re-use row 3's inputs (the old `key={index}` bug). */
 type DraftItem = InvoiceItem & { rowKey: string };
 
-function blankItem(taxRate = 0): DraftItem {
+function blankItem(category: InvoiceItem['category'] = 'Consultation'): DraftItem {
   return {
-    description: '', qty: 1, unitPrice: 0, taxRate, discount: 0, taxable: true,
-    category: 'Consultation', reference: '', referenceId: '', cost: 0, notes: '',
+    description: '', qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
+    category, reference: '', referenceId: '', cost: 0, notes: '',
     serviceDate: '', practitionerId: '', practitionerName: '', rowKey: newId('li'),
   };
 }
 
 const toDraftItems = (items: InvoiceItem[]): DraftItem[] =>
-  items.map((it) => ({ ...it, rowKey: newId('li') }));
+  items.map((it) => ({ ...it, taxRate: 0, taxable: false, rowKey: newId('li') }));
 
 const stripRowKeys = (items: DraftItem[]): InvoiceItem[] =>
   items.map(({ rowKey, ...rest }) => rest);
@@ -106,9 +285,9 @@ export default function BillingPage() {
   // so Billing agrees with Analytics, the dashboard and the owner portal.
 
   /** Totals for an unsaved draft: no stored total/tax, so tax comes from the item rates. */
-  const draftTotals = (draftItems: DraftItem[], discount: string, discountType: Invoice['discountType'], coupon: Invoice['coupon']) =>
+  const draftTotals = (rawItems: (InvoiceItem | DraftItem)[], discount: string, discountType: Invoice['discountType'], coupon: Invoice['coupon']) =>
     invoiceTotals({
-      items: stripRowKeys(draftItems),
+      items: rawItems.map((it) => ('rowKey' in it ? (({ rowKey, ...rest }) => rest)(it as DraftItem) : it)),
       discount: num(discount),
       discountType,
       coupon: coupon ?? [],
@@ -188,55 +367,53 @@ export default function BillingPage() {
   // === Invoice actions ===
   const setInv = (k: string, v: string) => setInvForm((f) => ({ ...f, [k]: v }));
 
-  /** The tax-rate field is a bulk control: it stamps the rate onto every line. */
-  const setTaxRateForAll = (v: string) => {
-    setInvForm((f) => ({ ...f, taxRate: v }));
-    setItems((its) => its.map((it) => ({ ...it, taxRate: numMin(v, 0) })));
-  };
-
   const openCreateInvoice = (docType: Invoice['docType'] = 'Invoice') => {
     setEditingId(null);
     setInvErr({});
-    const rate = taxRateOf(settings);
     setInvForm({
       docType, ownerId: '', petId: '', date: localDateISO(), dueDate: '',
       notes: '', terms: docType === 'Estimate' ? 'Estimate valid for 30 days' : 'Payment due within 14 days',
-      discount: '0', discountType: 'Fixed', taxRate: String(rate),
+      discount: '0', discountType: 'Fixed', taxRate: '0',
     });
-    setItems([blankItem(rate)]);
+    setItems([blankItem('Consultation')]);
     setInvModal(true);
   };
 
   const openEditInvoice = (inv: Invoice) => {
     setEditingId(inv.id);
     setInvErr({});
-    // Read the invoice's real rate instead of resetting every document to 5%.
-    const storedRate =
-      inv.taxes?.[0]?.rate ?? inv.items?.find((it) => it.taxable)?.taxRate ?? taxRateOf(settings);
     setInvForm({
       docType: inv.docType, ownerId: inv.ownerId, petId: inv.petId,
       date: inv.date, dueDate: inv.dueDate, notes: inv.notes, terms: inv.terms,
       discount: String(num(inv.discount)), discountType: inv.discountType,
-      taxRate: String(num(storedRate)),
+      taxRate: '0',
     });
-    setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem(num(storedRate))]);
+    setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem('Consultation')]);
     setInvModal(true);
   };
 
   const updateItem = (rowKey: string, patch: Partial<InvoiceItem>) =>
     setItems((its) => its.map((it) => (it.rowKey === rowKey ? { ...it, ...patch } : it)));
-  const addItem = () => setItems((its) => [...its, blankItem(numMin(invForm.taxRate, 0))]);
+  const addItem = () => setItems((its) => [...its, blankItem('Consultation')]);
+  const addMedicineItem = () => setItems((its) => [...its, blankItem('Medication')]);
   const removeItem = (rowKey: string) => setItems((its) => its.filter((it) => it.rowKey !== rowKey));
 
   const editingInvoice = editingId ? invoices.find((i) => i.id === editingId) : undefined;
-  // Per-item tax rates are now part of the total instead of being collected and ignored.
   const previewTotals = draftTotals(items, invForm.discount, invForm.discountType, editingInvoice?.coupon ?? []);
 
   const saveInvoice = async () => {
+    if (!db) return;
     const errs: { form?: string; owner?: string; items?: string } = {};
     if (!invForm.ownerId) errs.owner = 'Select the client this document belongs to.';
     if (items.length === 0 || items.every((it) => !it.description.trim())) {
       errs.items = 'Add at least one line item with a description.';
+    }
+    // Check if any medication item has qty <= 0 or empty description
+    if (items.some((it) => it.category === 'Medication' && !it.description.trim())) {
+      errs.items = 'Please select a medicine for every medicine line item.';
+    }
+    if (items.some((it) => it.category === 'Medication' && numMin(it.qty, 0) <= 0)) {
+      errs.items = 'Medicine items must have a quantity of at least 1 in stock.';
     }
     if (errs.owner || errs.items) {
       setInvErr({ ...errs, form: 'Please fix the highlighted fields before saving.' });
@@ -244,10 +421,50 @@ export default function BillingPage() {
     }
     setInvErr({});
 
-    const lineItems = stripRowKeys(items).filter((it) => it.description.trim());
-    const t = draftTotals(items.filter((it) => it.description.trim()), invForm.discount, invForm.discountType, editingInvoice?.coupon ?? []);
+    const lineItems = stripRowKeys(items)
+      .filter((it) => it.description.trim())
+      .map((it) => ({ ...it, taxRate: 0, taxable: false }));
+    const t = draftTotals(lineItems, invForm.discount, invForm.discountType, editingInvoice?.coupon ?? []);
     const amountPaid = round2(num(editingInvoice?.amountPaid));
     const balance = Math.max(0, round2(t.total - amountPaid));
+
+    // Calculate medicine stock net changes:
+    const nextMedQty: Record<string, number> = {};
+    lineItems.forEach((it) => {
+      const med = db.medStock.find(
+        (m) => m.id === it.referenceId || (it.category === 'Medication' && m.name.toLowerCase() === it.description.trim().toLowerCase())
+      );
+      if (med) {
+        nextMedQty[med.id] = round2((nextMedQty[med.id] || 0) + numMin(it.qty, 0));
+      }
+    });
+
+    const prevMedQty: Record<string, number> = {};
+    if (editingInvoice) {
+      (editingInvoice.items || []).forEach((it) => {
+        const med = db.medStock.find(
+          (m) => m.id === it.referenceId || (it.category === 'Medication' && m.name.toLowerCase() === it.description.trim().toLowerCase())
+        );
+        if (med) {
+          prevMedQty[med.id] = round2((prevMedQty[med.id] || 0) + numMin(it.qty, 0));
+        }
+      });
+    }
+
+    const allMedIds = Array.from(new Set([...Object.keys(prevMedQty), ...Object.keys(nextMedQty)]));
+    const stockPatches: { id: string; patch: StockPatch }[] = [];
+    for (const medId of allMedIds) {
+      const net = round2((nextMedQty[medId] || 0) - (prevMedQty[medId] || 0));
+      if (net === 0) continue;
+      const med = db.medStock.find((m) => m.id === medId);
+      if (!med) continue;
+      const have = availableOf(med);
+      if (net > have) {
+        setInvErr({ form: `Not enough stock for ${med.name}: ${have} ${med.unit} available, but ${net} needed.` });
+        return;
+      }
+      stockPatches.push({ id: medId, patch: movementPatch(med, -net) });
+    }
 
     const payload: Invoice = {
       id: editingId ?? newId('inv'),
@@ -262,12 +479,11 @@ export default function BillingPage() {
       discount: num(invForm.discount),
       discountType: invForm.discountType,
       coupon: editingInvoice?.coupon ?? [],
-      taxes: [{ name: 'VAT', rate: numMin(invForm.taxRate, 0), amount: t.taxTotal }],
-      taxTotal: t.taxTotal,
+      taxes: [],
+      taxTotal: 0,
       total: t.total,
       amountPaid,
       balance,
-      // Adding a line to a settled invoice must not leave it badged 'Paid'.
       status: derivedStatus(editingInvoice, t.total, amountPaid),
       method: editingInvoice?.method ?? '',
       payments: editingInvoice?.payments ?? [],
@@ -282,6 +498,62 @@ export default function BillingPage() {
     try {
       if (editingId) await update('invoices', editingId, payload);
       else await create('invoices', payload);
+
+      // Persist stock adjustments to medStock
+      for (const sp of stockPatches) {
+        await update('medStock', sp.id, sp.patch);
+      }
+
+      // Record in pharmacySales so Pharmacy -> Sales shows how much medicine sales were done!
+      const medLines = lineItems.filter((it) => {
+        return it.referenceId && db.medStock.some((m) => m.id === it.referenceId);
+      });
+      const existingSale = db.pharmacySales.find(
+        (s) => s.saleNumber === payload.number || s.notes === `Invoice ${payload.number}`
+      );
+
+      if (medLines.length > 0) {
+        const saleItems: SaleItem[] = medLines.map((it) => {
+          const med = db.medStock.find((m) => m.id === it.referenceId);
+          return {
+            id: newId('si'),
+            stockItemId: it.referenceId,
+            itemName: it.description,
+            quantity: numMin(it.qty, 1),
+            unit: med?.unit || 'unit',
+            unitPrice: num(it.unitPrice),
+            discount: num(it.discount),
+            lineTotal: round2(num(it.qty) * num(it.unitPrice) - num(it.discount)),
+          };
+        });
+        const medSubtotal = round2(saleItems.reduce((s, it) => s + it.lineTotal, 0));
+        const saleData: PharmacySale = {
+          id: existingSale?.id || newId('sale'),
+          saleNumber: payload.number,
+          date: payload.date,
+          customerName: ownerName(payload.ownerId),
+          petName: petName(payload.petId),
+          ownerId: payload.ownerId,
+          items: saleItems,
+          subtotal: medSubtotal,
+          tax: 0,
+          discount: 0,
+          total: medSubtotal,
+          paymentMethod: (payload.method || 'Cash') as PharmacySale['paymentMethod'],
+          status: (payload.status === 'Paid' ? 'Completed' : 'Pending') as PharmacySale['status'],
+          dispensedBy: payload.createdBy || 'Billing',
+          notes: `Invoice ${payload.number}`,
+          createdAt: existingSale?.createdAt || localDateISO(),
+        };
+        if (existingSale) {
+          await update('pharmacySales', existingSale.id, saleData);
+        } else {
+          await create('pharmacySales', saleData);
+        }
+      } else if (existingSale) {
+        await remove('pharmacySales', existingSale.id);
+      }
+
       setInvModal(false);
       setItems([]);
     } catch {
@@ -289,24 +561,29 @@ export default function BillingPage() {
     }
   };
 
-  const markPaid = (id: string) => {
+  const markPaid = async (id: string) => {
+    if (!db) return;
     const inv = db.invoices.find((i) => i.id === id);
     if (!inv) return;
     const t = invoiceTotals(inv);
-    // Only the remaining balance is receipted — not the whole total again.
     const payments = isZeroMoney(t.balance)
       ? inv.payments ?? []
       : [...(inv.payments ?? []), {
           id: newId('pay'), date: localDateISO(), amount: t.balance, method: inv.method || 'Cash',
           reference: '', notes: 'Marked as paid', receivedBy: '',
         }];
-    update('invoices', id, {
+    await update('invoices', id, {
       status: 'Paid',
       amountPaid: t.total,
       balance: 0,
       method: inv.method || 'Cash',
       payments,
     });
+    // Also update linked pharmacy sale to Completed
+    const linkedSale = db.pharmacySales.find((s) => s.saleNumber === inv.number || s.notes === `Invoice ${inv.number}`);
+    if (linkedSale && linkedSale.status !== 'Completed') {
+      await update('pharmacySales', linkedSale.id, { status: 'Completed' });
+    }
   };
 
   const convertEstimate = (id: string) => {
@@ -333,6 +610,23 @@ export default function BillingPage() {
   const deleteInvoice = async (inv: Invoice): Promise<boolean> => {
     if (!await confirmDelete(`${inv.docType.toLowerCase()} ${inv.number}`, `${ownerName(inv.ownerId)} · ${fmt(invoiceTotals(inv).total)}`)) {
       return false;
+    }
+    if (db) {
+      // Restore medicine stock if any
+      for (const it of inv.items || []) {
+        const med = db.medStock.find(
+          (m) => m.id === it.referenceId || (it.category === 'Medication' && m.name.toLowerCase() === it.description.trim().toLowerCase())
+        );
+        if (med && numMin(it.qty, 0) > 0) {
+          const patch = movementPatch(med, numMin(it.qty, 0));
+          await update('medStock', med.id, patch);
+        }
+      }
+      // Remove linked pharmacy sale if exists
+      const linkedSale = db.pharmacySales.find((s) => s.saleNumber === inv.number || s.notes === `Invoice ${inv.number}`);
+      if (linkedSale) {
+        await remove('pharmacySales', linkedSale.id);
+      }
     }
     remove('invoices', inv.id);
     return true;
@@ -368,15 +662,23 @@ export default function BillingPage() {
       method: payForm.method, reference: payForm.reference, notes: payForm.notes, receivedBy: '',
     };
     try {
+      const nextStatus = derivedStatus(live, t.total, newPaid);
       await update('invoices', live.id, {
         amountPaid: newPaid,
         balance: newBalance,
         // isZeroMoney, not `=== 0`: a pre-filled toFixed(2) amount used to leave
         // invoices stuck on 'Partial' with a half-cent balance.
-        status: derivedStatus(live, t.total, newPaid),
+        status: nextStatus,
         method: payForm.method,
         payments: [...(live.payments ?? []), newPay],
       });
+      // Also update linked pharmacy sale to Completed if invoice is fully paid
+      if (nextStatus === 'Paid' || isZeroMoney(newBalance)) {
+        const linkedSale = db?.pharmacySales.find((s) => s.saleNumber === live.number || s.notes === `Invoice ${live.number}`);
+        if (linkedSale && linkedSale.status !== 'Completed') {
+          await update('pharmacySales', linkedSale.id, { status: 'Completed' });
+        }
+      }
       setPayInvId(null);
       setPayForm({ amount: '', method: 'Cash', reference: '', notes: '' });
     } catch {
@@ -838,7 +1140,7 @@ export default function BillingPage() {
               </Select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Pet">
               <Select
                 value={invForm.petId}
@@ -860,9 +1162,6 @@ export default function BillingPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Tax rate (%)" hint="Applies to every line item; override per line below.">
-              <NumberInput value={invForm.taxRate} onChange={(e) => setTaxRateForAll(e.target.value)} min={0} step={0.5} />
-            </Field>
             <Field label={`Discount (${invForm.discountType === 'Percent' ? '%' : settings.currencySymbol})`}>
               <div className="flex gap-1">
                 <NumberInput value={invForm.discount} onChange={(e) => setInv('discount', e.target.value)} min={0} />
@@ -876,9 +1175,16 @@ export default function BillingPage() {
 
           {/* Line items */}
           <div className="border-t border-line pt-3">
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
               <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide">Line items</div>
-              <Button variant="outline" onClick={addItem}><Plus className="w-3.5 h-3.5" /> Add item</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={addMedicineItem}>
+                  <Pill className="w-3.5 h-3.5 mr-1" /> Add medicine
+                </Button>
+                <Button variant="outline" size="sm" onClick={addItem}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add custom item
+                </Button>
+              </div>
             </div>
             {invErr.items && (
               <div className="mb-2 flex items-center gap-1 text-[11px] font-medium text-coral">
@@ -886,21 +1192,149 @@ export default function BillingPage() {
               </div>
             )}
             <div className="space-y-2">
-              {items.map((it) => (
-                <div key={it.rowKey} className="grid grid-cols-12 gap-2 items-start p-2 rounded-lg bg-canvas">
-                  <Input className="col-span-4" placeholder="Description" value={it.description} onChange={(e) => { updateItem(it.rowKey, { description: e.target.value }); setInvErr((p) => ({ ...p, items: undefined })); }} />
-                  <Select value={it.category} onChange={(e) => updateItem(it.rowKey, { category: e.target.value as InvoiceItem['category'] })} className="col-span-2">
-                    {ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </Select>
-                  <NumberInput className="col-span-1" placeholder="Qty" value={String(it.qty)} onChange={(e) => updateItem(it.rowKey, { qty: numMin(e.target.value, 1, 1) })} min={1} />
-                  <NumberInput className="col-span-2" placeholder="Unit price" value={String(it.unitPrice)} onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })} min={0} />
-                  <NumberInput className="col-span-1" placeholder="Tax%" value={String(it.taxRate)} onChange={(e) => updateItem(it.rowKey, { taxRate: numMin(e.target.value, 0) })} min={0} />
-                  <div className="col-span-1 text-right text-xs font-medium text-ink pt-2">{fmt(round2(num(it.qty) * num(it.unitPrice)))}</div>
-                  <div className="col-span-1 flex justify-end pt-1">
-                    <button onClick={() => removeItem(it.rowKey)} className="text-ink/40 hover:text-coral" title="Remove line"><X className="w-4 h-4" /></button>
+              {items.map((it) => {
+                const isMed = it.category === 'Medication' || !!it.referenceId;
+                const med = it.referenceId
+                  ? db.medStock.find((m) => m.id === it.referenceId)
+                  : (isMed && it.description.trim() ? db.medStock.find((m) => m.name.toLowerCase() === it.description.trim().toLowerCase()) : undefined);
+
+                // Calculate stock available for this line (including previously deducted stock if editing):
+                const alreadyInThis = (editingInvoice?.items || [])
+                  .filter((x) => (med && x.referenceId === med.id) || (x.category === 'Medication' && med && x.description.trim().toLowerCase() === med.name.toLowerCase()))
+                  .reduce((s, x) => s + numMin(x.qty, 0), 0);
+                const totalAvail = med ? Math.floor(availableOf(med) + alreadyInThis) : 0;
+                const otherLines = med
+                  ? items
+                      .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === med.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === med.name.toLowerCase())))
+                      .reduce((s, o) => s + numMin(o.qty, 0), 0)
+                  : 0;
+                const maxAllowed = med ? Math.max(0, totalAvail - otherLines) : 0;
+                const limit = Math.min(maxAllowed, 200);
+                const qtyOptions = Array.from({ length: limit }, (_, i) => i + 1);
+
+                return (
+                  <div key={it.rowKey} className="grid grid-cols-12 gap-2 items-start p-2.5 rounded-lg bg-canvas">
+                    <div className="col-span-12 sm:col-span-4">
+                      {isMed ? (
+                        <MedicineSearchSelector
+                          medStock={db.medStock}
+                          selectedId={it.referenceId || med?.id}
+                          currentName={it.description}
+                          currencySymbol={settings.currencySymbol}
+                          onSelect={(selected) => {
+                            const prevCount = (editingInvoice?.items || [])
+                              .filter((x) => x.referenceId === selected.id || (x.category === 'Medication' && x.description.trim().toLowerCase() === selected.name.toLowerCase()))
+                              .reduce((s, x) => s + numMin(x.qty, 0), 0);
+                            const totalAv = Math.floor(availableOf(selected) + prevCount);
+                            const usedOthers = items
+                              .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === selected.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === selected.name.toLowerCase())))
+                              .reduce((s, o) => s + numMin(o.qty, 0), 0);
+                            const max = Math.max(0, totalAv - usedOthers);
+                            updateItem(it.rowKey, {
+                              description: selected.name,
+                              referenceId: selected.id,
+                              category: 'Medication',
+                              unitPrice: num(selected.price),
+                              qty: max > 0 ? (it.qty > 0 && it.qty <= max ? it.qty : 1) : 0,
+                            });
+                            setInvErr((p) => ({ ...p, items: undefined }));
+                          }}
+                        />
+                      ) : (
+                        <div>
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Description</label>
+                          <Input
+                            placeholder="Description"
+                            value={it.description}
+                            onChange={(e) => {
+                              updateItem(it.rowKey, { description: e.target.value });
+                              setInvErr((p) => ({ ...p, items: undefined }));
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div className="col-span-6 sm:col-span-2">
+                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Category</label>
+                      <Select
+                        value={it.category}
+                        onChange={(e) => {
+                          const newCat = e.target.value as InvoiceItem['category'];
+                          updateItem(it.rowKey, {
+                            category: newCat,
+                            referenceId: newCat === 'Medication' ? it.referenceId : '',
+                          });
+                        }}
+                      >
+                        {ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </Select>
+                    </div>
+                    <div className="col-span-6 sm:col-span-2">
+                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Quantity</label>
+                      {isMed ? (
+                        med ? (
+                          <div>
+                            <Select
+                              value={String(it.qty)}
+                              disabled={maxAllowed <= 0}
+                              onChange={(e) => updateItem(it.rowKey, { qty: Number(e.target.value) })}
+                            >
+                              {maxAllowed <= 0 ? (
+                                <option value="0">0 (Out of stock)</option>
+                              ) : (
+                                qtyOptions.map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))
+                              )}
+                            </Select>
+                            <span className="text-[10px] text-ink/40 block mt-0.5 truncate">
+                              Stock: {availableOf(med)} {med.unit || 'units'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <Select disabled value="0">
+                              <option value="0">Select medicine first</option>
+                            </Select>
+                          </div>
+                        )
+                      ) : (
+                        <NumberInput
+                          placeholder="Qty"
+                          value={String(it.qty)}
+                          onChange={(e) => updateItem(it.rowKey, { qty: numMin(e.target.value, 1, 1) })}
+                          min={1}
+                        />
+                      )}
+                    </div>
+                    <div className="col-span-6 sm:col-span-2">
+                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Unit price</label>
+                      <NumberInput
+                        placeholder="Unit price"
+                        value={String(it.unitPrice)}
+                        onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
+                        min={0}
+                      />
+                    </div>
+                    <div className="col-span-5 sm:col-span-1 text-right pt-5">
+                      <span className="text-xs font-semibold text-ink">
+                        {fmt(round2(num(it.qty) * num(it.unitPrice)))}
+                      </span>
+                    </div>
+                    <div className="col-span-1 flex justify-end pt-5">
+                      <button
+                        onClick={() => removeItem(it.rowKey)}
+                        className="text-ink/40 hover:text-coral transition-colors"
+                        title="Remove line"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Totals preview */}
@@ -910,7 +1344,6 @@ export default function BillingPage() {
                 {previewTotals.itemDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Line discounts</span><span>-{fmt(previewTotals.itemDiscount)}</span></div>}
                 <div className="flex justify-between text-ink/60"><span>Discount</span><span>-{fmt(previewTotals.invoiceDiscount)}</span></div>
                 {previewTotals.couponTotal > 0 && <div className="flex justify-between text-ink/60"><span>Coupons</span><span>-{fmt(previewTotals.couponTotal)}</span></div>}
-                <div className="flex justify-between text-ink/60"><span>Tax</span><span>{fmt(previewTotals.taxTotal)}</span></div>
                 <div className="flex justify-between font-semibold text-ink border-t border-line pt-1"><span>Total</span><span>{fmt(previewTotals.total)}</span></div>
               </div>
             </div>
@@ -982,7 +1415,7 @@ export default function BillingPage() {
                   {t.itemDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Line discounts</span><span>-{fmt(t.itemDiscount)}</span></div>}
                   {t.invoiceDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Discount</span><span>-{fmt(t.invoiceDiscount)}</span></div>}
                   {t.couponTotal > 0 && <div className="flex justify-between text-ink/60"><span>Coupons</span><span>-{fmt(t.couponTotal)}</span></div>}
-                  <div className="flex justify-between text-ink/60"><span>Tax</span><span>{fmt(t.taxTotal)}</span></div>
+                  {t.taxTotal > 0 && <div className="flex justify-between text-ink/60"><span>Tax</span><span>{fmt(t.taxTotal)}</span></div>}
                   <div className="flex justify-between font-semibold text-ink border-t border-line pt-1"><span>Total</span><span>{fmt(t.total)}</span></div>
                   <div className="flex justify-between text-plum text-xs"><span>Paid</span><span>{fmt(t.amountPaid)}</span></div>
                   <div className="flex justify-between font-semibold text-coral"><span>Balance</span><span>{fmt(t.balance)}</span></div>
