@@ -4,7 +4,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Receipt, Plus, TrendingUp, DollarSign, AlertCircle, Eye, CheckCircle2, RotateCcw,
   Trash2, FileText, Wallet, ArrowDownRight, ArrowUpRight, PiggyBank, Calendar,
-  Tag, Building2, Percent, X, Pill, Search,
+  Tag, Building2, Percent, X, Pill, Search, Syringe,
 } from 'lucide-react';
 import Shell from '../components/Shell';
 import { Card, Badge, Button, StatCard, EmptyState, Modal, Field, Input, Select, NumberInput, DateInput, Textarea } from '../components/ui';
@@ -202,23 +202,88 @@ function MedicineSearchSelector({
   );
 }
 
-/* Line items in the editor carry a client-only key so removing row 2 does not
-   make React re-use row 3's inputs (the old `key={index}` bug). */
-type DraftItem = InvoiceItem & { rowKey: string };
+const REPORT_OPTIONS = [
+  'CBC',
+  'BIO',
+  'CANINE FREE T4',
+  'Canine Progesterone',
+  'TROPONIN-I',
+  'CANINE TSH',
+  'CANINE TT4',
+] as const;
 
-function blankItem(category: InvoiceItem['category'] = 'Medication'): DraftItem {
+const VACCINE_OPTIONS = [
+  'First Vaccination (Puppy DP)',
+  'DHPP (7-in-1 / 9-in-1)',
+  'Anti-Rabies Vaccine (ARV)',
+  'Canine Coronavirus Vaccine',
+  'Bordetella (Kennel Cough)',
+  'Leptospirosis Vaccine',
+  'FVRCP (Cat Tricat)',
+  'FeLV (Feline Leukemia)',
+  'Booster Vaccination',
+] as const;
+
+type ItemType = 'medicine' | 'report' | 'vaccine' | 'custom';
+
+/* Line items in the editor carry a client-only key and type so removing row 2 does not
+   make React re-use row 3's inputs. */
+type DraftItem = InvoiceItem & { rowKey: string; itemType?: ItemType };
+
+function inferItemType(it: InvoiceItem): ItemType {
+  if (it.reference === 'diagnostic_report' || REPORT_OPTIONS.some((r) => it.description.startsWith(r))) return 'report';
+  if (it.reference === 'vaccination' || it.category === 'Vaccination' || VACCINE_OPTIONS.some((v) => it.description.startsWith(v))) return 'vaccine';
+  if (it.referenceId || it.category === 'Medication') return 'medicine';
+  return 'custom';
+}
+
+function blankItem(category: InvoiceItem['category'] = 'Medication', itemType: ItemType = 'medicine'): DraftItem {
   return {
     description: '', qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
     category, reference: '', referenceId: '', cost: 0, notes: '',
     serviceDate: '', practitionerId: '', practitionerName: '', rowKey: newId('li'),
+    itemType,
+  };
+}
+
+function blankReportItem(reportName = 'CBC'): DraftItem {
+  return {
+    description: reportName, qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
+    category: 'Other', reference: 'diagnostic_report', referenceId: '', cost: 0, notes: '',
+    serviceDate: '', practitionerId: '', practitionerName: '', rowKey: newId('li'),
+    itemType: 'report',
+  };
+}
+
+function blankVaccineItem(vaccineName = 'First Vaccination (Puppy DP)'): DraftItem {
+  return {
+    description: vaccineName, qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
+    category: 'Vaccination', reference: 'vaccination', referenceId: '', cost: 0, notes: '',
+    serviceDate: '', practitionerId: '', practitionerName: '', rowKey: newId('li'),
+    itemType: 'vaccine',
+  };
+}
+
+function blankCustomItem(): DraftItem {
+  return {
+    description: '', qty: 1, unitPrice: 0, taxRate: 0, discount: 0, taxable: false,
+    category: 'Consultation', reference: '', referenceId: '', cost: 0, notes: '',
+    serviceDate: '', practitionerId: '', practitionerName: '', rowKey: newId('li'),
+    itemType: 'custom',
   };
 }
 
 const toDraftItems = (items: InvoiceItem[]): DraftItem[] =>
-  items.map((it) => ({ ...it, taxRate: 0, taxable: false, rowKey: newId('li') }));
+  items.map((it) => ({
+    ...it,
+    taxRate: 0,
+    taxable: false,
+    rowKey: newId('li'),
+    itemType: inferItemType(it),
+  }));
 
 const stripRowKeys = (items: DraftItem[]): InvoiceItem[] =>
-  items.map(({ rowKey, ...rest }) => rest);
+  items.map(({ rowKey, itemType, ...rest }) => rest);
 
 function blankExpense(): Expense {
   return {
@@ -407,14 +472,27 @@ export default function BillingPage() {
     setInvModal(true);
   };
 
-  const updateItem = (rowKey: string, patch: Partial<InvoiceItem>) =>
+  const updateItem = (rowKey: string, patch: Partial<DraftItem>) =>
     setItems((its) => its.map((it) => (it.rowKey === rowKey ? { ...it, ...patch } : it)));
-  const addItem = () => setItems((its) => [...its, blankItem('Medication')]);
-  const addMedicineItem = () => setItems((its) => [...its, blankItem('Medication')]);
-  const addCustomItem = () => setItems((its) => [...its, blankItem('Consultation')]);
+  const addItem = () => setItems((its) => [...its, blankItem('Medication', 'medicine')]);
+  const addMedicineItem = () => setItems((its) => [...its, blankItem('Medication', 'medicine')]);
+  const addReportItem = () => setItems((its) => [...its, blankReportItem('CBC')]);
+  const addVaccineItem = () => setItems((its) => [...its, blankVaccineItem('First Vaccination (Puppy DP)')]);
+  const addCustomItem = () => setItems((its) => [...its, blankCustomItem()]);
   const removeItem = (rowKey: string) => setItems((its) => its.filter((it) => it.rowKey !== rowKey));
 
   const editingInvoice = editingId ? invoices.find((i) => i.id === editingId) : undefined;
+  const vaccineDropdownOptions = useMemo(() => {
+    const list = [...VACCINE_OPTIONS];
+    if (db?.medStock) {
+      db.medStock.forEach((m) => {
+        if (m.category?.toLowerCase() === 'vaccine' && !list.includes(m.name as any)) {
+          list.push(m.name as any);
+        }
+      });
+    }
+    return list;
+  }, [db?.medStock]);
   const previewTotals = draftTotals(
     items,
     invForm.discount,
@@ -433,13 +511,19 @@ export default function BillingPage() {
     const validLines = items.filter((it) => it.description.trim());
     const hasCharges = num(invForm.consultantCharge) > 0 || num(invForm.fileCharge) > 0 || num(invForm.dripperCharge) > 0;
     if (validLines.length === 0 && !hasCharges) {
-      errs.items = 'Add at least one medicine/item or enter a consultation/service charge.';
+      errs.items = 'Add at least one item (medicine, report, or vaccine) or enter a clinic charge.';
     }
     // Check if any medication item has qty <= 0 or empty description (only if that line was started)
-    if (items.some((it) => it.category === 'Medication' && !it.description.trim() && (items.length > 1 || !hasCharges))) {
+    if (items.some((it) => (it.itemType === 'medicine' || it.category === 'Medication') && !it.description.trim() && (items.length > 1 || !hasCharges))) {
       errs.items = 'Please select a medicine for every medicine line item.';
     }
-    if (validLines.some((it) => it.category === 'Medication' && numMin(it.qty, 0) <= 0)) {
+    if (items.some((it) => it.itemType === 'report' && !it.description.trim())) {
+      errs.items = 'Please select a report name for every report line item.';
+    }
+    if (items.some((it) => it.itemType === 'vaccine' && !it.description.trim())) {
+      errs.items = 'Please select a vaccine for every vaccine line item.';
+    }
+    if (validLines.some((it) => (it.itemType === 'medicine' || it.category === 'Medication') && numMin(it.qty, 0) <= 0)) {
       errs.items = 'Medicine items must have a quantity of at least 1 in stock.';
     }
     if (errs.owner || errs.items) {
@@ -1243,9 +1327,15 @@ export default function BillingPage() {
           <div className="border-t border-line pt-3">
             <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
               <div className="text-[11px] font-semibold text-ink/50 uppercase tracking-wide">Line items</div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Button variant="outline" size="sm" onClick={addMedicineItem}>
-                  <Pill className="w-3.5 h-3.5 mr-1" /> Add medicine
+                  <Pill className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Add medicine
+                </Button>
+                <Button variant="outline" size="sm" onClick={addReportItem}>
+                  <FileText className="w-3.5 h-3.5 mr-1 text-accent" /> Add report
+                </Button>
+                <Button variant="outline" size="sm" onClick={addVaccineItem}>
+                  <Syringe className="w-3.5 h-3.5 mr-1 text-teal-600" /> Add vaccine
                 </Button>
                 <Button variant="ghost" size="sm" onClick={addCustomItem} className="text-ink/60 hover:text-ink">
                   <Plus className="w-3.5 h-3.5 mr-1" /> Add custom item
@@ -1257,146 +1347,300 @@ export default function BillingPage() {
                 <AlertCircle className="w-3 h-3 shrink-0" /> {invErr.items}
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {items.map((it) => {
-                const isMed = it.category === 'Medication' || !!it.referenceId;
-                const med = it.referenceId
-                  ? db.medStock.find((m) => m.id === it.referenceId)
-                  : (isMed && it.description.trim() ? db.medStock.find((m) => m.name.toLowerCase() === it.description.trim().toLowerCase()) : undefined);
+                const itemType = it.itemType || inferItemType(it);
 
-                // Calculate stock available for this line (including previously deducted stock if editing):
-                const alreadyInThis = (editingInvoice?.items || [])
-                  .filter((x) => (med && x.referenceId === med.id) || (x.category === 'Medication' && med && x.description.trim().toLowerCase() === med.name.toLowerCase()))
-                  .reduce((s, x) => s + numMin(x.qty, 0), 0);
-                const totalAvail = med ? Math.floor(availableOf(med) + alreadyInThis) : 0;
-                const otherLines = med
-                  ? items
-                      .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === med.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === med.name.toLowerCase())))
-                      .reduce((s, o) => s + numMin(o.qty, 0), 0)
-                  : 0;
-                const maxAllowed = med ? Math.max(0, totalAvail - otherLines) : 0;
-                const limit = Math.min(maxAllowed, 200);
-                const qtyOptions = Array.from({ length: limit }, (_, i) => i + 1);
-
-                return (
-                  <div key={it.rowKey} className="grid grid-cols-12 gap-2 items-start p-2.5 rounded-lg bg-canvas">
-                    <div className="col-span-12 sm:col-span-4">
-                      {isMed ? (
-                        <MedicineSearchSelector
-                          medStock={db.medStock}
-                          selectedId={it.referenceId || med?.id}
-                          currentName={it.description}
-                          currencySymbol={settings.currencySymbol}
-                          onSelect={(selected) => {
-                            const prevCount = (editingInvoice?.items || [])
-                              .filter((x) => x.referenceId === selected.id || (x.category === 'Medication' && x.description.trim().toLowerCase() === selected.name.toLowerCase()))
-                              .reduce((s, x) => s + numMin(x.qty, 0), 0);
-                            const totalAv = Math.floor(availableOf(selected) + prevCount);
-                            const usedOthers = items
-                              .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === selected.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === selected.name.toLowerCase())))
-                              .reduce((s, o) => s + numMin(o.qty, 0), 0);
-                            const max = Math.max(0, totalAv - usedOthers);
-                            updateItem(it.rowKey, {
-                              description: selected.name,
-                              referenceId: selected.id,
-                              category: 'Medication',
-                              unitPrice: num(selected.price),
-                              qty: max > 0 ? (it.qty > 0 && it.qty <= max ? it.qty : 1) : 0,
-                            });
-                            setInvErr((p) => ({ ...p, items: undefined }));
-                          }}
-                        />
-                      ) : (
-                        <div>
-                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Description</label>
-                          <Input
-                            placeholder="Description"
+                if (itemType === 'report') {
+                  return (
+                    <div key={it.rowKey} className="p-2.5 rounded-lg bg-canvas border border-line/60">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-accent">
+                          <FileText className="w-3.5 h-3.5" /> Diagnostic Report
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 sm:col-span-7">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Report name</label>
+                          <Select
                             value={it.description}
                             onChange={(e) => {
                               updateItem(it.rowKey, { description: e.target.value });
                               setInvErr((p) => ({ ...p, items: undefined }));
                             }}
+                          >
+                            {REPORT_OPTIONS.map((rep) => (
+                              <option key={rep} value={rep}>
+                                {rep}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div className="col-span-7 sm:col-span-3">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">
+                            Report charge ({settings.currencySymbol})
+                          </label>
+                          <NumberInput
+                            placeholder="0.00"
+                            value={String(it.unitPrice || '')}
+                            onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
+                            min={0}
                           />
                         </div>
-                      )}
+                        <div className="col-span-3 sm:col-span-1 text-right pt-4">
+                          <span className="text-xs font-semibold text-ink">
+                            {fmt(round2(num(it.unitPrice)))}
+                          </span>
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                          <button
+                            onClick={() => removeItem(it.rowKey)}
+                            className="text-ink/40 hover:text-coral transition-colors p-1"
+                            title="Remove report"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="col-span-6 sm:col-span-2">
-                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Category</label>
-                      <Select
-                        value={it.category}
-                        onChange={(e) => {
-                          const newCat = e.target.value as InvoiceItem['category'];
-                          updateItem(it.rowKey, {
-                            category: newCat,
-                            referenceId: newCat === 'Medication' ? it.referenceId : '',
-                          });
-                        }}
-                      >
-                        {ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </Select>
+                  );
+                }
+
+                if (itemType === 'vaccine') {
+                  return (
+                    <div key={it.rowKey} className="p-2.5 rounded-lg bg-canvas border border-line/60">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-teal-600">
+                          <Syringe className="w-3.5 h-3.5" /> Vaccination
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 items-center">
+                        <div className="col-span-12 sm:col-span-7">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Vaccine name</label>
+                          <Select
+                            value={it.description}
+                            onChange={(e) => {
+                              updateItem(it.rowKey, { description: e.target.value });
+                              setInvErr((p) => ({ ...p, items: undefined }));
+                            }}
+                          >
+                            {vaccineDropdownOptions.map((vac) => (
+                              <option key={vac} value={vac}>
+                                {vac}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div className="col-span-7 sm:col-span-3">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">
+                            Vaccine charge ({settings.currencySymbol})
+                          </label>
+                          <NumberInput
+                            placeholder="0.00"
+                            value={String(it.unitPrice || '')}
+                            onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
+                            min={0}
+                          />
+                        </div>
+                        <div className="col-span-3 sm:col-span-1 text-right pt-4">
+                          <span className="text-xs font-semibold text-ink">
+                            {fmt(round2(num(it.unitPrice)))}
+                          </span>
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 flex justify-end pt-4">
+                          <button
+                            onClick={() => removeItem(it.rowKey)}
+                            className="text-ink/40 hover:text-coral transition-colors p-1"
+                            title="Remove vaccine"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="col-span-6 sm:col-span-2">
-                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Quantity</label>
-                      {isMed ? (
-                        med ? (
-                          <div>
-                            <Select
-                              value={String(it.qty)}
-                              disabled={maxAllowed <= 0}
-                              onChange={(e) => updateItem(it.rowKey, { qty: Number(e.target.value) })}
-                            >
-                              {maxAllowed <= 0 ? (
-                                <option value="0">0 (Out of stock)</option>
-                              ) : (
-                                qtyOptions.map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))
-                              )}
-                            </Select>
-                            <span className="text-[10px] text-ink/40 block mt-0.5 truncate">
-                              Stock: {availableOf(med)} {med.unit || 'units'}
-                            </span>
-                          </div>
-                        ) : (
-                          <div>
-                            <Select disabled value="0">
-                              <option value="0">Select medicine first</option>
-                            </Select>
-                          </div>
-                        )
-                      ) : (
+                  );
+                }
+
+                if (itemType === 'medicine') {
+                  const isMed = true;
+                  const med = it.referenceId
+                    ? db.medStock.find((m) => m.id === it.referenceId)
+                    : (it.description.trim() ? db.medStock.find((m) => m.name.toLowerCase() === it.description.trim().toLowerCase()) : undefined);
+
+                  // Calculate stock available for this line (including previously deducted stock if editing):
+                  const alreadyInThis = (editingInvoice?.items || [])
+                    .filter((x) => (med && x.referenceId === med.id) || (x.category === 'Medication' && med && x.description.trim().toLowerCase() === med.name.toLowerCase()))
+                    .reduce((s, x) => s + numMin(x.qty, 0), 0);
+                  const totalAvail = med ? Math.floor(availableOf(med) + alreadyInThis) : 0;
+                  const otherLines = med
+                    ? items
+                        .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === med.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === med.name.toLowerCase())))
+                        .reduce((s, o) => s + numMin(o.qty, 0), 0)
+                    : 0;
+                  const maxAllowed = med ? Math.max(0, totalAvail - otherLines) : 0;
+                  const limit = Math.min(maxAllowed, 200);
+                  const qtyOptions = Array.from({ length: limit }, (_, i) => i + 1);
+
+                  return (
+                    <div key={it.rowKey} className="p-2.5 rounded-lg bg-canvas border border-line/60">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
+                          <Pill className="w-3.5 h-3.5" /> Medicine
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 items-start">
+                        <div className="col-span-12 sm:col-span-5">
+                          <MedicineSearchSelector
+                            medStock={db.medStock}
+                            selectedId={it.referenceId || med?.id}
+                            currentName={it.description}
+                            currencySymbol={settings.currencySymbol}
+                            onSelect={(selected) => {
+                              const prevCount = (editingInvoice?.items || [])
+                                .filter((x) => x.referenceId === selected.id || (x.category === 'Medication' && x.description.trim().toLowerCase() === selected.name.toLowerCase()))
+                                .reduce((s, x) => s + numMin(x.qty, 0), 0);
+                              const totalAv = Math.floor(availableOf(selected) + prevCount);
+                              const usedOthers = items
+                                .filter((o) => o.rowKey !== it.rowKey && (o.referenceId === selected.id || (o.category === 'Medication' && o.description.trim().toLowerCase() === selected.name.toLowerCase())))
+                                .reduce((s, o) => s + numMin(o.qty, 0), 0);
+                              const max = Math.max(0, totalAv - usedOthers);
+                              updateItem(it.rowKey, {
+                                description: selected.name,
+                                referenceId: selected.id,
+                                category: 'Medication',
+                                unitPrice: num(selected.price),
+                                qty: max > 0 ? (it.qty > 0 && it.qty <= max ? it.qty : 1) : 0,
+                              });
+                              setInvErr((p) => ({ ...p, items: undefined }));
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-6 sm:col-span-3">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Quantity</label>
+                          {med ? (
+                            <div>
+                              <Select
+                                value={String(it.qty)}
+                                disabled={maxAllowed <= 0}
+                                onChange={(e) => updateItem(it.rowKey, { qty: Number(e.target.value) })}
+                              >
+                                {maxAllowed <= 0 ? (
+                                  <option value="0">0 (Out of stock)</option>
+                                ) : (
+                                  qtyOptions.map((n) => (
+                                    <option key={n} value={n}>
+                                      {n}
+                                    </option>
+                                  ))
+                                )}
+                              </Select>
+                              <span className="text-[10px] text-ink/40 block mt-0.5 truncate">
+                                Stock: {availableOf(med)} {med.unit || 'units'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <Select disabled value="0">
+                                <option value="0">Select medicine first</option>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                        <div className="col-span-6 sm:col-span-2">
+                          <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Unit price</label>
+                          <NumberInput
+                            placeholder="Unit price"
+                            value={String(it.unitPrice)}
+                            onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
+                            min={0}
+                          />
+                        </div>
+                        <div className="col-span-5 sm:col-span-1 text-right pt-5">
+                          <span className="text-xs font-semibold text-ink">
+                            {fmt(round2(num(it.qty) * num(it.unitPrice)))}
+                          </span>
+                        </div>
+                        <div className="col-span-1 flex justify-end pt-5">
+                          <button
+                            onClick={() => removeItem(it.rowKey)}
+                            className="text-ink/40 hover:text-coral transition-colors p-1"
+                            title="Remove medicine"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Default: Custom item
+                return (
+                  <div key={it.rowKey} className="p-2.5 rounded-lg bg-canvas border border-line/60">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink/60">
+                        <Plus className="w-3.5 h-3.5" /> Custom Item
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-start">
+                      <div className="col-span-12 sm:col-span-4">
+                        <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Description</label>
+                        <Input
+                          placeholder="Description"
+                          value={it.description}
+                          onChange={(e) => {
+                            updateItem(it.rowKey, { description: e.target.value });
+                            setInvErr((p) => ({ ...p, items: undefined }));
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Category</label>
+                        <Select
+                          value={it.category}
+                          onChange={(e) => {
+                            const newCat = e.target.value as InvoiceItem['category'];
+                            updateItem(it.rowKey, {
+                              category: newCat,
+                              referenceId: newCat === 'Medication' ? it.referenceId : '',
+                            });
+                          }}
+                        >
+                          {ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </Select>
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Quantity</label>
                         <NumberInput
                           placeholder="Qty"
                           value={String(it.qty)}
                           onChange={(e) => updateItem(it.rowKey, { qty: numMin(e.target.value, 1, 1) })}
                           min={1}
                         />
-                      )}
-                    </div>
-                    <div className="col-span-6 sm:col-span-2">
-                      <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Unit price</label>
-                      <NumberInput
-                        placeholder="Unit price"
-                        value={String(it.unitPrice)}
-                        onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
-                        min={0}
-                      />
-                    </div>
-                    <div className="col-span-5 sm:col-span-1 text-right pt-5">
-                      <span className="text-xs font-semibold text-ink">
-                        {fmt(round2(num(it.qty) * num(it.unitPrice)))}
-                      </span>
-                    </div>
-                    <div className="col-span-1 flex justify-end pt-5">
-                      <button
-                        onClick={() => removeItem(it.rowKey)}
-                        className="text-ink/40 hover:text-coral transition-colors"
-                        title="Remove line"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      </div>
+                      <div className="col-span-6 sm:col-span-2">
+                        <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Unit price</label>
+                        <NumberInput
+                          placeholder="Unit price"
+                          value={String(it.unitPrice)}
+                          onChange={(e) => updateItem(it.rowKey, { unitPrice: numMin(e.target.value, 0) })}
+                          min={0}
+                        />
+                      </div>
+                      <div className="col-span-5 sm:col-span-1 text-right pt-5">
+                        <span className="text-xs font-semibold text-ink">
+                          {fmt(round2(num(it.qty) * num(it.unitPrice)))}
+                        </span>
+                      </div>
+                      <div className="col-span-1 flex justify-end pt-5">
+                        <button
+                          onClick={() => removeItem(it.rowKey)}
+                          className="text-ink/40 hover:text-coral transition-colors p-1"
+                          title="Remove custom item"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
