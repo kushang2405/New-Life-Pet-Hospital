@@ -228,7 +228,7 @@ type ItemType = 'medicine' | 'report' | 'vaccine' | 'custom';
 
 /* Line items in the editor carry a client-only key and type so removing row 2 does not
    make React re-use row 3's inputs. */
-type DraftItem = InvoiceItem & { rowKey: string; itemType?: ItemType };
+type DraftItem = InvoiceItem & { rowKey: string; itemType?: ItemType; isManual?: boolean };
 
 function inferItemType(it: InvoiceItem): ItemType {
   if (it.reference === 'diagnostic_report' || REPORT_OPTIONS.some((r) => it.description.startsWith(r))) return 'report';
@@ -283,7 +283,7 @@ const toDraftItems = (items: InvoiceItem[]): DraftItem[] =>
   }));
 
 const stripRowKeys = (items: DraftItem[]): InvoiceItem[] =>
-  items.map(({ rowKey, itemType, ...rest }) => rest);
+  items.map(({ rowKey, itemType, isManual, ...rest }) => rest);
 
 function blankExpense(): Expense {
   return {
@@ -522,7 +522,7 @@ export default function BillingPage() {
       errs.items = 'Please select a report name for every report line item.';
     }
     if (items.some((it) => it.itemType === 'vaccine' && !it.description.trim())) {
-      errs.items = 'Please select a vaccine for every vaccine line item.';
+      errs.items = 'Please select or type a vaccine name for every vaccine line item.';
     }
     if (validLines.some((it) => (it.itemType === 'medicine' || it.category === 'Medication') && numMin(it.qty, 0) <= 0)) {
       errs.items = 'Medicine items must have a quantity of at least 1 in stock.';
@@ -1408,6 +1408,8 @@ export default function BillingPage() {
                 }
 
                 if (itemType === 'vaccine') {
+                  const isManual = it.isManual ?? (!vaccineDropdownOptions.includes(it.description as any) && it.description !== '');
+
                   return (
                     <div key={it.rowKey} className="p-2.5 rounded-lg bg-canvas border border-line/60">
                       <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -1415,13 +1417,17 @@ export default function BillingPage() {
                           <Syringe className="w-3.5 h-3.5" /> Vaccination
                         </div>
                       </div>
-                      <div className="grid grid-cols-12 gap-2 items-center">
+                      <div className="grid grid-cols-12 gap-2 items-start">
                         <div className="col-span-12 sm:col-span-7">
                           <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">Vaccine name</label>
                           <Select
-                            value={it.description}
+                            value={isManual ? '__manual__' : it.description}
                             onChange={(e) => {
-                              updateItem(it.rowKey, { description: e.target.value });
+                              if (e.target.value === '__manual__') {
+                                updateItem(it.rowKey, { isManual: true, description: '' });
+                              } else {
+                                updateItem(it.rowKey, { isManual: false, description: e.target.value });
+                              }
                               setInvErr((p) => ({ ...p, items: undefined }));
                             }}
                           >
@@ -1430,7 +1436,21 @@ export default function BillingPage() {
                                 {vac}
                               </option>
                             ))}
+                            <option value="__manual__">+ Add manual name</option>
                           </Select>
+                          {isManual && (
+                            <div className="mt-1.5">
+                              <Input
+                                placeholder="Type vaccine name..."
+                                value={it.description}
+                                autoFocus
+                                onChange={(e) => {
+                                  updateItem(it.rowKey, { description: e.target.value });
+                                  setInvErr((p) => ({ ...p, items: undefined }));
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                         <div className="col-span-7 sm:col-span-3">
                           <label className="text-[10px] text-ink/40 block mb-0.5 font-medium">
