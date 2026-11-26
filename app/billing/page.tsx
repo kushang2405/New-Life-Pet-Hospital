@@ -439,6 +439,18 @@ export default function BillingPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
   }, [invoices]);
 
+  const vaccineDropdownOptions = useMemo(() => {
+    const list = [...VACCINE_OPTIONS];
+    if (db?.medStock) {
+      db.medStock.forEach((m) => {
+        if (m.category?.toLowerCase() === 'vaccine' && !list.includes(m.name as any)) {
+          list.push(m.name as any);
+        }
+      });
+    }
+    return list;
+  }, [db?.medStock]);
+
   if (!db) return <Shell module="billing" title="Billing"><div className="text-sm text-ink/50">Loading...</div></Shell>;
 
   // === Invoice actions ===
@@ -482,17 +494,6 @@ export default function BillingPage() {
   const removeItem = (rowKey: string) => setItems((its) => its.filter((it) => it.rowKey !== rowKey));
 
   const editingInvoice = editingId ? invoices.find((i) => i.id === editingId) : undefined;
-  const vaccineDropdownOptions = useMemo(() => {
-    const list = [...VACCINE_OPTIONS];
-    if (db?.medStock) {
-      db.medStock.forEach((m) => {
-        if (m.category?.toLowerCase() === 'vaccine' && !list.includes(m.name as any)) {
-          list.push(m.name as any);
-        }
-      });
-    }
-    return list;
-  }, [db?.medStock]);
   const previewTotals = draftTotals(
     items,
     invForm.discount,
