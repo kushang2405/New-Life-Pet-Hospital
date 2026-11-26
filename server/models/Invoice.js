@@ -25,7 +25,7 @@ const PaymentSchema = new mongoose.Schema(
     id: { type: String, default: '' },
     date: { type: String, default: '' },
     amount: { type: Number, default: 0 },
-    method: { type: String, enum: ['Cash', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon', ''], default: '' },
+    method: { type: String, enum: ['Cash', 'Online', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon', ''], default: '' },
     reference: { type: String, default: '' },
     notes: { type: String, default: '' },
     receivedBy: { type: String, default: '' },
@@ -84,7 +84,7 @@ const InvoiceSchema = new mongoose.Schema(
     },
     method: {
       type: String,
-      enum: ['Cash', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon', ''],
+      enum: ['Cash', 'Online', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon', ''],
       default: '',
     },
     payments: [PaymentSchema],

@@ -438,7 +438,7 @@ export type Payment = {
   id: string;
   date: string;
   amount: number;
-  method: 'Cash' | 'Card' | 'Transfer' | 'Insurance' | 'Credit' | 'Coupon' | '';
+  method: 'Cash' | 'Online' | 'Card' | 'Transfer' | 'Insurance' | 'Credit' | 'Coupon' | '';
   reference: string;
   notes: string;
   receivedBy: string;
@@ -479,7 +479,7 @@ export type Invoice = {
   amountPaid: number;
   balance: number;
   status: 'Draft' | 'Sent' | 'Paid' | 'Partial' | 'Pending' | 'Overdue' | 'Refunded' | 'Cancelled' | 'Converted';
-  method: 'Cash' | 'Card' | 'Transfer' | 'Insurance' | 'Credit' | 'Coupon' | '';
+  method: 'Cash' | 'Online' | 'Card' | 'Transfer' | 'Insurance' | 'Credit' | 'Coupon' | '';
   payments: Payment[];
   notes: string;
   terms: string;

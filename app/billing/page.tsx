@@ -20,7 +20,7 @@ type DocFilter = 'all' | 'Invoice' | 'Estimate' | 'Credit Note' | 'Receipt' | 'R
 
 const DOC_TYPES: Invoice['docType'][] = ['Invoice', 'Estimate', 'Receipt', 'Credit Note', 'Refund'];
 const ITEM_CATEGORIES: InvoiceItem['category'][] = ['Consultation', 'Surgery', 'Medication', 'Vaccination', 'Grooming', 'Boarding', 'Product', 'Other'];
-const PAYMENT_METHODS: Payment['method'][] = ['Cash', 'Card', 'Transfer', 'Insurance', 'Credit', 'Coupon'];
+const PAYMENT_METHODS: Payment['method'][] = ['Cash', 'Online'];
 const EXPENSE_CATEGORIES: Expense['category'][] = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Equipment', 'Maintenance', 'Marketing', 'Insurance', 'Professional fees', 'Travel', 'Bank charges', 'Taxes', 'Other'];
 
 /* ════════════════════════════════════════════════════════════════════
@@ -247,8 +247,6 @@ export default function BillingPage() {
     petId: '',
     date: localDateISO(),
     dueDate: '',
-    notes: '',
-    terms: 'Payment due within 14 days',
     discount: '0',
     discountType: 'Fixed' as 'Fixed' | 'Percent' | '',
     taxRate: '0',
@@ -259,7 +257,7 @@ export default function BillingPage() {
   const [items, setItems] = useState<DraftItem[]>([]);
   const [invErr, setInvErr] = useState<{ form?: string; owner?: string; items?: string }>({});
   const [payInvId, setPayInvId] = useState<string | null>(null);
-  const [payForm, setPayForm] = useState({ amount: '', method: 'Cash' as Payment['method'], reference: '', notes: '' });
+  const [payForm, setPayForm] = useState({ amount: '', method: 'Cash' as Payment['method'], reference: '' });
   const [payErr, setPayErr] = useState('');
 
   // Expense modal state
@@ -386,7 +384,6 @@ export default function BillingPage() {
     setInvErr({});
     setInvForm({
       docType, ownerId: '', petId: '', date: localDateISO(), dueDate: '',
-      notes: '', terms: docType === 'Estimate' ? 'Estimate valid for 30 days' : 'Payment due within 14 days',
       discount: '0', discountType: 'Fixed', taxRate: '0',
       consultantCharge: '', fileCharge: '', dripperCharge: '',
     });
@@ -399,7 +396,7 @@ export default function BillingPage() {
     setInvErr({});
     setInvForm({
       docType: inv.docType, ownerId: inv.ownerId, petId: inv.petId,
-      date: inv.date, dueDate: inv.dueDate, notes: inv.notes, terms: inv.terms,
+      date: inv.date, dueDate: inv.dueDate,
       discount: String(num(inv.discount)), discountType: inv.discountType,
       taxRate: '0',
       consultantCharge: inv.consultantCharge ? String(inv.consultantCharge) : '',
@@ -528,8 +525,8 @@ export default function BillingPage() {
       status: derivedStatus(editingInvoice, t.total, amountPaid),
       method: editingInvoice?.method ?? '',
       payments: editingInvoice?.payments ?? [],
-      notes: invForm.notes,
-      terms: invForm.terms,
+      notes: '',
+      terms: '',
       linkedInvoiceId: editingInvoice?.linkedInvoiceId ?? '',
       linkedEstimateId: editingInvoice?.linkedEstimateId ?? '',
       createdBy: editingInvoice?.createdBy ?? '',
@@ -676,7 +673,7 @@ export default function BillingPage() {
   const openPayModal = (inv: Invoice) => {
     setPayInvId(inv.id);
     setPayErr('');
-    setPayForm({ amount: invoiceTotals(inv).balance.toFixed(2), method: 'Cash', reference: '', notes: '' });
+    setPayForm({ amount: invoiceTotals(inv).balance.toFixed(2), method: 'Cash', reference: '' });
   };
 
   const recordPayment = async () => {
@@ -700,7 +697,7 @@ export default function BillingPage() {
     const newBalance = Math.max(0, round2(t.total - newPaid));
     const newPay: Payment = {
       id: newId('pay'), date: localDateISO(), amount: amt,
-      method: payForm.method, reference: payForm.reference, notes: payForm.notes, receivedBy: '',
+      method: payForm.method, reference: payForm.reference, notes: '', receivedBy: '',
     };
     try {
       const nextStatus = derivedStatus(live, t.total, newPaid);
@@ -721,7 +718,7 @@ export default function BillingPage() {
         }
       }
       setPayInvId(null);
-      setPayForm({ amount: '', method: 'Cash', reference: '', notes: '' });
+      setPayForm({ amount: '', method: 'Cash', reference: '' });
     } catch {
       setPayErr('Could not record this payment. Please try again.');
     }
@@ -1445,15 +1442,6 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Notes">
-              <Textarea value={invForm.notes} onChange={(e) => setInv('notes', e.target.value)} placeholder="Internal notes…" />
-            </Field>
-            <Field label="Terms">
-              <Textarea value={invForm.terms} onChange={(e) => setInv('terms', e.target.value)} placeholder="Payment terms…" />
-            </Field>
-          </div>
-
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={() => setInvModal(false)}>Cancel</Button>
             <Button onClick={saveInvoice}>{editingId ? 'Save changes' : `Create ${invForm.docType.toLowerCase()}`}</Button>
@@ -1576,12 +1564,6 @@ export default function BillingPage() {
                 </div>
               )}
 
-              {inv.notes && (
-                <div className="rounded-lg bg-canvas p-3 text-xs text-ink/60">
-                  <span className="font-semibold text-ink/80">Notes: </span>{inv.notes}
-                </div>
-              )}
-
               {/* Actions */}
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button variant="outline" onClick={() => { openEditInvoice(inv); setDetailInvId(null); }}>
@@ -1645,9 +1627,6 @@ export default function BillingPage() {
               </Field>
               <Field label="Reference">
                 <Input placeholder="Transaction ID…" value={payForm.reference} onChange={(e) => setPayForm((f) => ({ ...f, reference: e.target.value }))} />
-              </Field>
-              <Field label="Notes">
-                <Textarea value={payForm.notes} onChange={(e) => setPayForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…" />
               </Field>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => { setPayInvId(null); setPayErr(''); }}>Cancel</Button>
