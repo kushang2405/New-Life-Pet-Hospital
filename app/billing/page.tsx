@@ -252,6 +252,9 @@ export default function BillingPage() {
     discount: '0',
     discountType: 'Fixed' as 'Fixed' | 'Percent' | '',
     taxRate: '0',
+    consultantCharge: '',
+    fileCharge: '',
+    dripperCharge: '',
   });
   const [items, setItems] = useState<DraftItem[]>([]);
   const [invErr, setInvErr] = useState<{ form?: string; owner?: string; items?: string }>({});
@@ -285,7 +288,15 @@ export default function BillingPage() {
   // so Billing agrees with Analytics, the dashboard and the owner portal.
 
   /** Totals for an unsaved draft: no stored total/tax, so tax comes from the item rates. */
-  const draftTotals = (rawItems: (InvoiceItem | DraftItem)[], discount: string, discountType: Invoice['discountType'], coupon: Invoice['coupon']) =>
+  const draftTotals = (
+    rawItems: (InvoiceItem | DraftItem)[],
+    discount: string,
+    discountType: Invoice['discountType'],
+    coupon: Invoice['coupon'],
+    consultantCharge: string | number = 0,
+    fileCharge: string | number = 0,
+    dripperCharge: string | number = 0,
+  ) =>
     invoiceTotals({
       items: rawItems.map((it) => ('rowKey' in it ? (({ rowKey, ...rest }) => rest)(it as DraftItem) : it)),
       discount: num(discount),
@@ -294,6 +305,9 @@ export default function BillingPage() {
       taxes: [],
       amountPaid: 0,
       payments: [],
+      consultantCharge: num(consultantCharge),
+      fileCharge: num(fileCharge),
+      dripperCharge: num(dripperCharge),
     } as unknown as Invoice);
 
   /**
@@ -374,6 +388,7 @@ export default function BillingPage() {
       docType, ownerId: '', petId: '', date: localDateISO(), dueDate: '',
       notes: '', terms: docType === 'Estimate' ? 'Estimate valid for 30 days' : 'Payment due within 14 days',
       discount: '0', discountType: 'Fixed', taxRate: '0',
+      consultantCharge: '', fileCharge: '', dripperCharge: '',
     });
     setItems([blankItem('Medication')]);
     setInvModal(true);
@@ -387,6 +402,9 @@ export default function BillingPage() {
       date: inv.date, dueDate: inv.dueDate, notes: inv.notes, terms: inv.terms,
       discount: String(num(inv.discount)), discountType: inv.discountType,
       taxRate: '0',
+      consultantCharge: inv.consultantCharge ? String(inv.consultantCharge) : '',
+      fileCharge: inv.fileCharge ? String(inv.fileCharge) : '',
+      dripperCharge: inv.dripperCharge ? String(inv.dripperCharge) : '',
     });
     setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem('Medication')]);
     setInvModal(true);
@@ -400,20 +418,31 @@ export default function BillingPage() {
   const removeItem = (rowKey: string) => setItems((its) => its.filter((it) => it.rowKey !== rowKey));
 
   const editingInvoice = editingId ? invoices.find((i) => i.id === editingId) : undefined;
-  const previewTotals = draftTotals(items, invForm.discount, invForm.discountType, editingInvoice?.coupon ?? []);
+  const previewTotals = draftTotals(
+    items,
+    invForm.discount,
+    invForm.discountType,
+    editingInvoice?.coupon ?? [],
+    invForm.consultantCharge,
+    invForm.fileCharge,
+    invForm.dripperCharge,
+  );
 
   const saveInvoice = async () => {
     if (!db) return;
     const errs: { form?: string; owner?: string; items?: string } = {};
     if (!invForm.ownerId) errs.owner = 'Select the client this document belongs to.';
-    if (items.length === 0 || items.every((it) => !it.description.trim())) {
-      errs.items = 'Add at least one line item with a description.';
+
+    const validLines = items.filter((it) => it.description.trim());
+    const hasCharges = num(invForm.consultantCharge) > 0 || num(invForm.fileCharge) > 0 || num(invForm.dripperCharge) > 0;
+    if (validLines.length === 0 && !hasCharges) {
+      errs.items = 'Add at least one medicine/item or enter a consultation/service charge.';
     }
-    // Check if any medication item has qty <= 0 or empty description
-    if (items.some((it) => it.category === 'Medication' && !it.description.trim())) {
+    // Check if any medication item has qty <= 0 or empty description (only if that line was started)
+    if (items.some((it) => it.category === 'Medication' && !it.description.trim() && (items.length > 1 || !hasCharges))) {
       errs.items = 'Please select a medicine for every medicine line item.';
     }
-    if (items.some((it) => it.category === 'Medication' && numMin(it.qty, 0) <= 0)) {
+    if (validLines.some((it) => it.category === 'Medication' && numMin(it.qty, 0) <= 0)) {
       errs.items = 'Medicine items must have a quantity of at least 1 in stock.';
     }
     if (errs.owner || errs.items) {
@@ -425,7 +454,15 @@ export default function BillingPage() {
     const lineItems = stripRowKeys(items)
       .filter((it) => it.description.trim())
       .map((it) => ({ ...it, taxRate: 0, taxable: false }));
-    const t = draftTotals(lineItems, invForm.discount, invForm.discountType, editingInvoice?.coupon ?? []);
+    const t = draftTotals(
+      lineItems,
+      invForm.discount,
+      invForm.discountType,
+      editingInvoice?.coupon ?? [],
+      invForm.consultantCharge,
+      invForm.fileCharge,
+      invForm.dripperCharge,
+    );
     const amountPaid = round2(num(editingInvoice?.amountPaid));
     const balance = Math.max(0, round2(t.total - amountPaid));
 
@@ -477,6 +514,9 @@ export default function BillingPage() {
       dueDate: invForm.dueDate,
       items: lineItems,
       subtotal: t.subtotal,
+      consultantCharge: round2(num(invForm.consultantCharge)),
+      fileCharge: round2(num(invForm.fileCharge)),
+      dripperCharge: round2(num(invForm.dripperCharge)),
       discount: num(invForm.discount),
       discountType: invForm.discountType,
       coupon: editingInvoice?.coupon ?? [],
@@ -1174,6 +1214,34 @@ export default function BillingPage() {
             </Field>
           </div>
 
+          {/* Direct Clinic Charges */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field label={`Consultant charge (${settings.currencySymbol})`} hint="Doctor consultation fee">
+              <NumberInput
+                placeholder="0.00"
+                value={invForm.consultantCharge}
+                onChange={(e) => setInv('consultantCharge', e.target.value)}
+                min={0}
+              />
+            </Field>
+            <Field label={`File charge (${settings.currencySymbol})`} hint="Case paper / Registration">
+              <NumberInput
+                placeholder="0.00"
+                value={invForm.fileCharge}
+                onChange={(e) => setInv('fileCharge', e.target.value)}
+                min={0}
+              />
+            </Field>
+            <Field label={`Dripper charge (${settings.currencySymbol})`} hint="Bottle / IV infusion">
+              <NumberInput
+                placeholder="0.00"
+                value={invForm.dripperCharge}
+                onChange={(e) => setInv('dripperCharge', e.target.value)}
+                min={0}
+              />
+            </Field>
+          </div>
+
           {/* Line items */}
           <div className="border-t border-line pt-3">
             <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
@@ -1340,8 +1408,35 @@ export default function BillingPage() {
 
             {/* Totals preview */}
             <div className="flex justify-end mt-3">
-              <div className="w-56 space-y-1 text-sm">
-                <div className="flex justify-between text-ink/60"><span>Subtotal</span><span>{fmt(previewTotals.subtotal)}</span></div>
+              <div className="w-64 space-y-1 text-sm">
+                {previewTotals.itemsSubtotal > 0 && (num(invForm.consultantCharge) > 0 || num(invForm.fileCharge) > 0 || num(invForm.dripperCharge) > 0) && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>Medicines / Items</span>
+                    <span>{fmt(previewTotals.itemsSubtotal)}</span>
+                  </div>
+                )}
+                {num(invForm.consultantCharge) > 0 && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>Consultant charge</span>
+                    <span>{fmt(num(invForm.consultantCharge))}</span>
+                  </div>
+                )}
+                {num(invForm.fileCharge) > 0 && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>File charge</span>
+                    <span>{fmt(num(invForm.fileCharge))}</span>
+                  </div>
+                )}
+                {num(invForm.dripperCharge) > 0 && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>Dripper / Bottle charge</span>
+                    <span>{fmt(num(invForm.dripperCharge))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-ink/60 pt-1 border-t border-line/60">
+                  <span>Subtotal</span>
+                  <span>{fmt(previewTotals.subtotal)}</span>
+                </div>
                 {previewTotals.itemDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Line discounts</span><span>-{fmt(previewTotals.itemDiscount)}</span></div>}
                 <div className="flex justify-between text-ink/60"><span>Discount</span><span>-{fmt(previewTotals.invoiceDiscount)}</span></div>
                 {previewTotals.couponTotal > 0 && <div className="flex justify-between text-ink/60"><span>Coupons</span><span>-{fmt(previewTotals.couponTotal)}</span></div>}
@@ -1410,9 +1505,48 @@ export default function BillingPage() {
                       <span className="font-medium text-ink">{fmt(round2(num(it.qty) * num(it.unitPrice)))}</span>
                     </div>
                   ))}
+                  {num(inv.consultantCharge) > 0 && (
+                    <div className="flex items-start justify-between px-3 py-2 rounded-lg bg-canvas text-xs">
+                      <div>
+                        <div className="text-ink/80 font-medium">Consultant Charge</div>
+                        <div className="text-ink/40 text-[10px] mt-0.5">Consultation fee</div>
+                      </div>
+                      <span className="font-medium text-ink">{fmt(num(inv.consultantCharge))}</span>
+                    </div>
+                  )}
+                  {num(inv.fileCharge) > 0 && (
+                    <div className="flex items-start justify-between px-3 py-2 rounded-lg bg-canvas text-xs">
+                      <div>
+                        <div className="text-ink/80 font-medium">File Charge</div>
+                        <div className="text-ink/40 text-[10px] mt-0.5">Case paper / Registration fee</div>
+                      </div>
+                      <span className="font-medium text-ink">{fmt(num(inv.fileCharge))}</span>
+                    </div>
+                  )}
+                  {num(inv.dripperCharge) > 0 && (
+                    <div className="flex items-start justify-between px-3 py-2 rounded-lg bg-canvas text-xs">
+                      <div>
+                        <div className="text-ink/80 font-medium">Dripper Charge</div>
+                        <div className="text-ink/40 text-[10px] mt-0.5">Bottle / IV infusion charge</div>
+                      </div>
+                      <span className="font-medium text-ink">{fmt(num(inv.dripperCharge))}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="mt-3 ml-auto w-56 space-y-1 text-sm">
-                  <div className="flex justify-between text-ink/60"><span>Subtotal</span><span>{fmt(t.subtotal)}</span></div>
+                <div className="mt-3 ml-auto w-64 space-y-1 text-sm">
+                  {t.itemsSubtotal > 0 && (num(inv.consultantCharge) > 0 || num(inv.fileCharge) > 0 || num(inv.dripperCharge) > 0) && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>Medicines / Items</span><span>{fmt(t.itemsSubtotal)}</span></div>
+                  )}
+                  {num(inv.consultantCharge) > 0 && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>Consultant charge</span><span>{fmt(num(inv.consultantCharge))}</span></div>
+                  )}
+                  {num(inv.fileCharge) > 0 && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>File charge</span><span>{fmt(num(inv.fileCharge))}</span></div>
+                  )}
+                  {num(inv.dripperCharge) > 0 && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>Dripper / Bottle charge</span><span>{fmt(num(inv.dripperCharge))}</span></div>
+                  )}
+                  <div className="flex justify-between text-ink/60 pt-1 border-t border-line/60"><span>Subtotal</span><span>{fmt(t.subtotal)}</span></div>
                   {t.itemDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Line discounts</span><span>-{fmt(t.itemDiscount)}</span></div>}
                   {t.invoiceDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Discount</span><span>-{fmt(t.invoiceDiscount)}</span></div>}
                   {t.couponTotal > 0 && <div className="flex justify-between text-ink/60"><span>Coupons</span><span>-{fmt(t.couponTotal)}</span></div>}

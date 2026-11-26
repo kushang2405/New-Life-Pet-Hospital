@@ -9,7 +9,13 @@ import { useSettings } from '../lib/settings';
 
 type Props = { db: DB; todays: any[]; petName: (id: string) => string; ownerName: (id: string) => string };
 
-const invTotal = (i: any) => i.items.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+const invTotal = (i: any) =>
+  typeof i.total === 'number' && i.total > 0
+    ? i.total
+    : (i.items || []).reduce((s: number, it: any) => s + (it.qty || 1) * (it.unitPrice || 0), 0) +
+      (i.consultantCharge || 0) +
+      (i.fileCharge || 0) +
+      (i.dripperCharge || 0);
 
 export function computeBI(db: DB, todays: any[]) {
   const t = new Date().toISOString().slice(0, 10);

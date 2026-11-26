@@ -467,6 +467,9 @@ export type Invoice = {
   dueDate: string;
   items: InvoiceItem[];
   subtotal: number;
+  consultantCharge?: number;
+  fileCharge?: number;
+  dripperCharge?: number;
   discount: number;
   discountType: 'Fixed' | 'Percent' | '';
   coupon: CouponLine[];

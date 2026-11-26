@@ -200,6 +200,10 @@ export function isNonEmpty(value: string): boolean {
    ────────────────────────────────────────────────────────────── */
 
 export type InvoiceTotals = {
+  itemsSubtotal: number;
+  consultantCharge: number;
+  fileCharge: number;
+  dripperCharge: number;
   subtotal: number;
   itemDiscount: number;
   invoiceDiscount: number;
@@ -225,9 +229,14 @@ export type InvoiceTotals = {
 export function invoiceTotals(inv: Invoice): InvoiceTotals {
   const items = inv.items ?? [];
 
-  const subtotal = round2(
+  const itemsSubtotal = round2(
     items.reduce((s, it) => s + num(it.qty) * num(it.unitPrice), 0),
   );
+  const consultantCharge = round2(num(inv.consultantCharge));
+  const fileCharge = round2(num(inv.fileCharge));
+  const dripperCharge = round2(num(inv.dripperCharge));
+  const subtotal = round2(itemsSubtotal + consultantCharge + fileCharge + dripperCharge);
+
   const itemDiscount = round2(
     items.reduce(
       (s, it) => s + num(it.qty) * num(it.unitPrice) * (num(it.discount) / 100),
@@ -280,6 +289,10 @@ export function invoiceTotals(inv: Invoice): InvoiceTotals {
   const balance = Math.max(0, round2(total - amountPaid));
 
   return {
+    itemsSubtotal,
+    consultantCharge,
+    fileCharge,
+    dripperCharge,
     subtotal,
     itemDiscount,
     invoiceDiscount,

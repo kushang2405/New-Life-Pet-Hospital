@@ -18,7 +18,13 @@ const age = (birth: string) => {
   return `${Math.floor(months / 12)}y ${months % 12}mo`;
 };
 
-const invTotal = (i: Invoice) => i.items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
+const invTotal = (i: Invoice) =>
+  typeof i.total === 'number' && i.total > 0
+    ? i.total
+    : (i.items || []).reduce((s, it) => s + it.qty * it.unitPrice, 0) +
+      (i.consultantCharge || 0) +
+      (i.fileCharge || 0) +
+      (i.dripperCharge || 0);
 
 type ProfileProps = {
   pet: Pet;
