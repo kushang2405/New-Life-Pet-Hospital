@@ -204,6 +204,8 @@ export type InvoiceTotals = {
   consultantCharge: number;
   fileCharge: number;
   dripperCharge: number;
+  injectionCharge: number;
+  surgeryCharge: number;
   subtotal: number;
   itemDiscount: number;
   invoiceDiscount: number;
@@ -235,7 +237,9 @@ export function invoiceTotals(inv: Invoice): InvoiceTotals {
   const consultantCharge = round2(num(inv.consultantCharge));
   const fileCharge = round2(num(inv.fileCharge));
   const dripperCharge = round2(num(inv.dripperCharge));
-  const subtotal = round2(itemsSubtotal + consultantCharge + fileCharge + dripperCharge);
+  const injectionCharge = round2(num(inv.injectionCharge));
+  const surgeryCharge = round2(num(inv.surgeryCharge));
+  const subtotal = round2(itemsSubtotal + consultantCharge + fileCharge + dripperCharge + injectionCharge + surgeryCharge);
 
   const itemDiscount = round2(
     items.reduce(
@@ -293,6 +297,8 @@ export function invoiceTotals(inv: Invoice): InvoiceTotals {
     consultantCharge,
     fileCharge,
     dripperCharge,
+    injectionCharge,
+    surgeryCharge,
     subtotal,
     itemDiscount,
     invoiceDiscount,

@@ -24,7 +24,9 @@ const invTotal = (i: Invoice) =>
     : (i.items || []).reduce((s, it) => s + it.qty * it.unitPrice, 0) +
       (i.consultantCharge || 0) +
       (i.fileCharge || 0) +
-      (i.dripperCharge || 0);
+      (i.dripperCharge || 0) +
+      (i.injectionCharge || 0) +
+      (i.surgeryCharge || 0);
 
 type ProfileProps = {
   pet: Pet;

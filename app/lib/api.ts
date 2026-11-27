@@ -470,6 +470,8 @@ export type Invoice = {
   consultantCharge?: number;
   fileCharge?: number;
   dripperCharge?: number;
+  injectionCharge?: number;
+  surgeryCharge?: number;
   discount: number;
   discountType: 'Fixed' | 'Percent' | '';
   coupon: CouponLine[];

@@ -15,7 +15,9 @@ const invTotal = (i: any) =>
     : (i.items || []).reduce((s: number, it: any) => s + (it.qty || 1) * (it.unitPrice || 0), 0) +
       (i.consultantCharge || 0) +
       (i.fileCharge || 0) +
-      (i.dripperCharge || 0);
+      (i.dripperCharge || 0) +
+      (i.injectionCharge || 0) +
+      (i.surgeryCharge || 0);
 
 export function computeBI(db: DB, todays: any[]) {
   const t = new Date().toISOString().slice(0, 10);

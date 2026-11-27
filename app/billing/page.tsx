@@ -318,6 +318,8 @@ export default function BillingPage() {
     consultantCharge: '',
     fileCharge: '',
     dripperCharge: '',
+    injectionCharge: '',
+    surgeryCharge: '',
   });
   const [items, setItems] = useState<DraftItem[]>([]);
   const [invErr, setInvErr] = useState<{ form?: string; owner?: string; items?: string }>({});
@@ -359,6 +361,8 @@ export default function BillingPage() {
     consultantCharge: string | number = 0,
     fileCharge: string | number = 0,
     dripperCharge: string | number = 0,
+    injectionCharge: string | number = 0,
+    surgeryCharge: string | number = 0,
   ) =>
     invoiceTotals({
       items: rawItems.map((it) => ('rowKey' in it ? (({ rowKey, ...rest }) => rest)(it as DraftItem) : it)),
@@ -371,6 +375,8 @@ export default function BillingPage() {
       consultantCharge: num(consultantCharge),
       fileCharge: num(fileCharge),
       dripperCharge: num(dripperCharge),
+      injectionCharge: num(injectionCharge),
+      surgeryCharge: num(surgeryCharge),
     } as unknown as Invoice);
 
   /**
@@ -463,6 +469,7 @@ export default function BillingPage() {
       docType, ownerId: '', petId: '', date: localDateISO(), dueDate: '',
       discount: '0', discountType: 'Fixed', taxRate: '0',
       consultantCharge: '', fileCharge: '', dripperCharge: '',
+      injectionCharge: '', surgeryCharge: '',
     });
     setItems([blankItem('Medication')]);
     setInvModal(true);
@@ -479,6 +486,8 @@ export default function BillingPage() {
       consultantCharge: inv.consultantCharge ? String(inv.consultantCharge) : '',
       fileCharge: inv.fileCharge ? String(inv.fileCharge) : '',
       dripperCharge: inv.dripperCharge ? String(inv.dripperCharge) : '',
+      injectionCharge: inv.injectionCharge ? String(inv.injectionCharge) : '',
+      surgeryCharge: inv.surgeryCharge ? String(inv.surgeryCharge) : '',
     });
     setItems(inv.items.length > 0 ? toDraftItems(inv.items) : [blankItem('Medication')]);
     setInvModal(true);
@@ -502,6 +511,8 @@ export default function BillingPage() {
     invForm.consultantCharge,
     invForm.fileCharge,
     invForm.dripperCharge,
+    invForm.injectionCharge,
+    invForm.surgeryCharge,
   );
 
   const saveInvoice = async () => {
@@ -510,7 +521,12 @@ export default function BillingPage() {
     if (!invForm.ownerId) errs.owner = 'Select the client this document belongs to.';
 
     const validLines = items.filter((it) => it.description.trim());
-    const hasCharges = num(invForm.consultantCharge) > 0 || num(invForm.fileCharge) > 0 || num(invForm.dripperCharge) > 0;
+    const hasCharges =
+      num(invForm.consultantCharge) > 0 ||
+      num(invForm.fileCharge) > 0 ||
+      num(invForm.dripperCharge) > 0 ||
+      num(invForm.injectionCharge) > 0 ||
+      num(invForm.surgeryCharge) > 0;
     if (validLines.length === 0 && !hasCharges) {
       errs.items = 'Add at least one item (medicine, report, or vaccine) or enter a clinic charge.';
     }
@@ -544,6 +560,8 @@ export default function BillingPage() {
       invForm.consultantCharge,
       invForm.fileCharge,
       invForm.dripperCharge,
+      invForm.injectionCharge,
+      invForm.surgeryCharge,
     );
     const amountPaid = round2(num(editingInvoice?.amountPaid));
     const balance = Math.max(0, round2(t.total - amountPaid));
@@ -599,6 +617,8 @@ export default function BillingPage() {
       consultantCharge: round2(num(invForm.consultantCharge)),
       fileCharge: round2(num(invForm.fileCharge)),
       dripperCharge: round2(num(invForm.dripperCharge)),
+      injectionCharge: round2(num(invForm.injectionCharge)),
+      surgeryCharge: round2(num(invForm.surgeryCharge)),
       discount: num(invForm.discount),
       discountType: invForm.discountType,
       coupon: editingInvoice?.coupon ?? [],
@@ -1324,6 +1344,25 @@ export default function BillingPage() {
             </Field>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <Field label={`Injection charge (${settings.currencySymbol})`} hint="Injection administration fee">
+              <NumberInput
+                placeholder="0.00"
+                value={invForm.injectionCharge}
+                onChange={(e) => setInv('injectionCharge', e.target.value)}
+                min={0}
+              />
+            </Field>
+            <Field label={`Surgery charge (${settings.currencySymbol})`} hint="Surgical procedure fee">
+              <NumberInput
+                placeholder="0.00"
+                value={invForm.surgeryCharge}
+                onChange={(e) => setInv('surgeryCharge', e.target.value)}
+                min={0}
+              />
+            </Field>
+          </div>
+
           {/* Line items */}
           <div className="border-t border-line pt-3">
             <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
@@ -1671,7 +1710,12 @@ export default function BillingPage() {
             {/* Totals preview */}
             <div className="flex justify-end mt-3">
               <div className="w-64 space-y-1 text-sm">
-                {previewTotals.itemsSubtotal > 0 && (num(invForm.consultantCharge) > 0 || num(invForm.fileCharge) > 0 || num(invForm.dripperCharge) > 0) && (
+                {previewTotals.itemsSubtotal > 0 &&
+                  (num(invForm.consultantCharge) > 0 ||
+                    num(invForm.fileCharge) > 0 ||
+                    num(invForm.dripperCharge) > 0 ||
+                    num(invForm.injectionCharge) > 0 ||
+                    num(invForm.surgeryCharge) > 0) && (
                   <div className="flex justify-between text-ink/60 text-xs">
                     <span>Medicines / Items</span>
                     <span>{fmt(previewTotals.itemsSubtotal)}</span>
@@ -1693,6 +1737,18 @@ export default function BillingPage() {
                   <div className="flex justify-between text-ink/60 text-xs">
                     <span>Dripper / Bottle charge</span>
                     <span>{fmt(num(invForm.dripperCharge))}</span>
+                  </div>
+                )}
+                {num(invForm.injectionCharge) > 0 && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>Injection charge</span>
+                    <span>{fmt(num(invForm.injectionCharge))}</span>
+                  </div>
+                )}
+                {num(invForm.surgeryCharge) > 0 && (
+                  <div className="flex justify-between text-ink/60 text-xs">
+                    <span>Surgery charge</span>
+                    <span>{fmt(num(invForm.surgeryCharge))}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-ink/60 pt-1 border-t border-line/60">
@@ -1785,9 +1841,32 @@ export default function BillingPage() {
                       <span className="font-medium text-ink">{fmt(num(inv.dripperCharge))}</span>
                     </div>
                   )}
+                  {num(inv.injectionCharge) > 0 && (
+                    <div className="flex items-start justify-between px-3 py-2 rounded-lg bg-canvas text-xs">
+                      <div>
+                        <div className="text-ink/80 font-medium">Injection Charge</div>
+                        <div className="text-ink/40 text-[10px] mt-0.5">Injection administration fee</div>
+                      </div>
+                      <span className="font-medium text-ink">{fmt(num(inv.injectionCharge))}</span>
+                    </div>
+                  )}
+                  {num(inv.surgeryCharge) > 0 && (
+                    <div className="flex items-start justify-between px-3 py-2 rounded-lg bg-canvas text-xs">
+                      <div>
+                        <div className="text-ink/80 font-medium">Surgery Charge</div>
+                        <div className="text-ink/40 text-[10px] mt-0.5">Surgical procedure fee</div>
+                      </div>
+                      <span className="font-medium text-ink">{fmt(num(inv.surgeryCharge))}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 ml-auto w-64 space-y-1 text-sm">
-                  {t.itemsSubtotal > 0 && (num(inv.consultantCharge) > 0 || num(inv.fileCharge) > 0 || num(inv.dripperCharge) > 0) && (
+                  {t.itemsSubtotal > 0 &&
+                    (num(inv.consultantCharge) > 0 ||
+                      num(inv.fileCharge) > 0 ||
+                      num(inv.dripperCharge) > 0 ||
+                      num(inv.injectionCharge) > 0 ||
+                      num(inv.surgeryCharge) > 0) && (
                     <div className="flex justify-between text-ink/60 text-xs"><span>Medicines / Items</span><span>{fmt(t.itemsSubtotal)}</span></div>
                   )}
                   {num(inv.consultantCharge) > 0 && (
@@ -1798,6 +1877,12 @@ export default function BillingPage() {
                   )}
                   {num(inv.dripperCharge) > 0 && (
                     <div className="flex justify-between text-ink/60 text-xs"><span>Dripper / Bottle charge</span><span>{fmt(num(inv.dripperCharge))}</span></div>
+                  )}
+                  {num(inv.injectionCharge) > 0 && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>Injection charge</span><span>{fmt(num(inv.injectionCharge))}</span></div>
+                  )}
+                  {num(inv.surgeryCharge) > 0 && (
+                    <div className="flex justify-between text-ink/60 text-xs"><span>Surgery charge</span><span>{fmt(num(inv.surgeryCharge))}</span></div>
                   )}
                   <div className="flex justify-between text-ink/60 pt-1 border-t border-line/60"><span>Subtotal</span><span>{fmt(t.subtotal)}</span></div>
                   {t.itemDiscount > 0 && <div className="flex justify-between text-ink/60"><span>Line discounts</span><span>-{fmt(t.itemDiscount)}</span></div>}
